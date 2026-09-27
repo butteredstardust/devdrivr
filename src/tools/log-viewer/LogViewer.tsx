@@ -1,7 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+} from 'react'
+import type { OnMount } from '@monaco-editor/react'
 import type { editor as MonacoEditorTypes } from 'monaco-editor'
 import {
   ArrowDownIcon,
+  CaretDownIcon,
+  CaretUpIcon,
   CopyIcon,
   FileIcon,
   MagnifyingGlassIcon,
@@ -14,6 +25,7 @@ import { Button } from '@/components/shared/Button'
 import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ToolLayout } from '@/components/shared/ToolLayout'
+import { SearchInput } from '@/components/shared/SearchInput'
 import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { useLogTail } from '@/hooks/useLogTail'
@@ -22,10 +34,21 @@ import { useNativeFileDrop } from '@/hooks/useNativeFileDrop'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useIsInstanceActive } from '@/app/tool-instance'
 import { filenameFromPath, isLikelyBinaryText, pickTextFilePath } from '@/lib/file-io'
-import type { LogEncoding } from '@/lib/log-tail'
+import {
+  filterLog,
+  findLogLevel,
+  indexLog,
+  isFilterActive,
+  LOG_LEVELS,
+  type LogFilter,
+  type LogLevel,
+} from '@/lib/log-levels'
+import { stripAnsi, type LogEncoding } from '@/lib/log-tail'
 import { appendLogText, countLineBreaks, countTextLines } from '@/lib/log-viewer'
+import { formatShortcut } from '@/lib/shortcut-label'
 import { decodeTextBytes } from '@/lib/text-encoding'
 import { useUiStore } from '@/stores/ui.store'
+import { LOG_LANGUAGE_ID, registerLogLanguage } from './log-language'
 
 type LogEditor = MonacoEditorTypes.IStandaloneCodeEditor
 type LogModel = MonacoEditorTypes.ITextModel
@@ -39,6 +62,62 @@ const ENCODING_LABELS: Record<LogEncoding, string> = {
 
 /** The distance in pixels from the end that still counts as the end of the log. */
 const END_TOLERANCE = 4
+/** The part of a line that the level colouring reads. A level appears near the line start. */
+const LEVEL_SEARCH_CHARACTERS = 1000
+
+const LEVEL_LABELS: Record<LogLevel, string> = {
+  error: 'Error',
+  warn: 'Warn',
+  info: 'Info',
+  debug: 'Debug',
+  trace: 'Trace',
+}
+
+const NO_FILTER: LogFilter = { query: '', regex: false, levels: [] }
+
+function plural(count: number, one: string, many: string): string {
+  return `${count.toLocaleString()} ${count === 1 ? one : many}`
+}
+
+/**
+ * Colours the level word of each visible line. Monaco themes have no token colour for a log
+ * level, so the colour comes from a decoration class in `index.css`.
+ */
+function colourLevels(editor: LogEditor): void {
+  const levels = editor.createDecorationsCollection()
+  let frame = 0
+  const paint = () => {
+    frame = 0
+    const model = editor.getModel()
+    if (!model) return
+    const decorations: MonacoEditorTypes.IModelDeltaDecoration[] = []
+    for (const range of editor.getVisibleRanges()) {
+      for (let line = range.startLineNumber; line <= range.endLineNumber; line++) {
+        const content = model.getLineContent(line).slice(0, LEVEL_SEARCH_CHARACTERS)
+        const match = findLogLevel(content)
+        if (!match) continue
+        decorations.push({
+          range: {
+            startLineNumber: line,
+            startColumn: match.start + 1,
+            endLineNumber: line,
+            endColumn: match.end + 1,
+          },
+          options: { inlineClassName: `log-level-${match.level}` },
+        })
+      }
+    }
+    levels.set(decorations)
+  }
+  const schedule = () => {
+    if (!frame) frame = requestAnimationFrame(paint)
+  }
+  editor.onDidScrollChange(schedule)
+  editor.onDidChangeModelContent(schedule)
+  editor.onDidChangeModel(schedule)
+  editor.onDidDispose(() => cancelAnimationFrame(frame))
+  schedule()
+}
 
 function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -110,16 +189,38 @@ export default function LogViewer() {
   /** `null` until the first read of a path finishes. */
   const [encoding, setEncoding] = useState<LogEncoding | null>(null)
   const [revealToken, setRevealToken] = useState(0)
+  const [filter, setFilter] = useState<LogFilter>(NO_FILTER)
+  const [wordWrap, setWordWrap] = useState(monacoOptions.wordWrap === 'on')
   const editorRef = useRef<LogEditor | null>(null)
   const textRef = useRef('')
   const fileNameRef = useRef<string | null>(null)
   const followingRef = useRef(true)
   const reloadBlockedRef = useRef(false)
   const waitingRef = useRef(false)
+  /** The scroll position to restore after the editor `value` replaces a filtered view. */
+  const keepScrollRef = useRef<number | null>(null)
+  const toggleWordWrapRef = useRef(() => {})
   const rootRef = useRef<HTMLDivElement>(null)
   const isInstanceActive = useIsInstanceActive()
 
   const lineCount = useMemo(() => countTextLines(content), [content])
+  const logIndex = useMemo(() => indexLog(content), [content])
+  // Typing in the filter must not wait for a filter of the whole log.
+  const activeFilter = useDeferredValue(filter)
+  const filtered = useMemo(
+    () => (isFilterActive(activeFilter) ? filterLog(logIndex, activeFilter) : null),
+    [activeFilter, logIndex]
+  )
+  const shownLines = filtered?.ok ? filtered.lineNumbers : null
+  const viewText = filtered?.ok ? filtered.text : content
+  /** The one-based view lines of the lines that name `error`. */
+  const errorViewLines = useMemo(() => {
+    if (!shownLines) return logIndex.errorLines.map((line) => line + 1)
+    return shownLines.flatMap((line, index) =>
+      logIndex.own[line - 1] === 'error' ? [index + 1] : []
+    )
+  }, [logIndex, shownLines])
+
   const editorOptions = useMemo(
     () => ({
       ...monacoOptions,
@@ -128,9 +229,21 @@ export default function LogViewer() {
       renderValidationDecorations: 'off' as const,
       // The end of the log is the end of the scroll range, so "at the end" has one meaning.
       scrollBeyondLastLine: false,
+      wordWrap: wordWrap ? ('on' as const) : ('off' as const),
+      scrollbar: { ...monacoOptions.scrollbar, horizontal: wordWrap ? 'auto' : 'visible' } as const,
+      // A filtered view shows the line numbers of the full log.
+      ...(shownLines
+        ? {
+            lineNumbers: (line: number) => String(shownLines[line - 1] ?? ''),
+            lineNumbersMinChars: Math.max(5, String(shownLines.at(-1) ?? 0).length + 1),
+          }
+        : {}),
     }),
-    [monacoOptions]
+    [monacoOptions, shownLines, wordWrap]
   )
+
+  const toggleWordWrap = useCallback(() => setWordWrap((current) => !current), [])
+  toggleWordWrapRef.current = toggleWordWrap
 
   const setFollowing = useCallback((next: boolean) => {
     followingRef.current = next
@@ -140,9 +253,15 @@ export default function LogViewer() {
     if (editorRef.current) scrollToEnd(editorRef.current)
   }, [])
 
-  // A replace goes through the editor `value`. Scroll after the editor applies it.
+  // A replace, and each update of a filtered view, goes through the editor `value`. The editor
+  // applies it in its own effect, which runs first. Scroll after it.
   useEffect(() => {
-    if (followingRef.current && editorRef.current) scrollToEnd(editorRef.current)
+    const editor = editorRef.current
+    const keep = keepScrollRef.current
+    keepScrollRef.current = null
+    if (!editor) return
+    if (followingRef.current) scrollToEnd(editor)
+    else if (keep !== null) editor.setScrollTop(keep)
   }, [revealToken])
 
   /** Returns the number of characters removed from the start of the text. */
@@ -163,6 +282,9 @@ export default function LogViewer() {
       // The model now equals `next`, so the editor `value` update below changes nothing.
       editModel(editor, model, text, removed, followingRef.current)
     } else {
+      // A filtered view has other text than the model, so an append replaces it. Keep the lines
+      // that the user reads in place.
+      keepScrollRef.current = kind === 'append' && editor ? editor.getScrollTop() : null
       setRevealToken((token) => token + 1)
     }
     setContent(next)
@@ -205,7 +327,9 @@ export default function LogViewer() {
 
   /** Opens text without a path. Nothing tails it. */
   const openContent = useCallback(
-    (text: string, name: string) => {
+    (raw: string, name: string) => {
+      // Escape sequences use control characters, which the binary check rejects.
+      const text = stripAnsi(raw).replace(/\r\n?/g, '\n')
       if (isLikelyBinaryText(text)) {
         setLastAction(`Unsupported binary file: ${name}`, 'error')
         return
@@ -214,7 +338,7 @@ export default function LogViewer() {
       fileNameRef.current = name
       setFileName(name)
       setFilePath(null)
-      const removed = writeText('replace', text.replace(/\r\n?/g, '\n'))
+      const removed = writeText('replace', text)
       setTruncated(removed > 0)
       setLastAction(`Opened ${name}`, 'success')
     },
@@ -299,9 +423,16 @@ export default function LogViewer() {
     [openContent, setLastAction]
   )
 
-  const handleMount = useCallback(
-    (editor: LogEditor) => {
+  const handleMount = useCallback<OnMount>(
+    (editor, monaco) => {
       editorRef.current = editor
+      colourLevels(editor)
+      editor.addAction({
+        id: 'devdrivr.toggleWordWrap',
+        label: 'Toggle Word Wrap',
+        keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.KeyZ],
+        run: () => toggleWordWrapRef.current(),
+      })
       editor.onDidScrollChange((event) => {
         // A content or layout change moves the scroll position too. Only a scroll by the user
         // changes the scroll position alone.
@@ -338,6 +469,34 @@ export default function LogViewer() {
     setLastAction('Log closed', 'info')
   }, [closeView, setLastAction])
 
+  /** Moves the cursor to the next error line after the cursor, or the previous one before it. */
+  const goToError = useCallback(
+    (direction: 1 | -1) => {
+      const editor = editorRef.current
+      if (!editor || errorViewLines.length === 0) return
+      const current = editor.getPosition()?.lineNumber ?? 0
+      const target =
+        direction === 1
+          ? (errorViewLines.find((line) => line > current) ?? errorViewLines[0])
+          : (errorViewLines.findLast((line) => line < current) ?? errorViewLines.at(-1))
+      if (target === undefined) return
+      setFollowing(false)
+      editor.setPosition({ lineNumber: target, column: 1 })
+      editor.revealLineInCenter(target)
+      editor.focus()
+    },
+    [errorViewLines, setFollowing]
+  )
+
+  const toggleLevel = useCallback((level: LogLevel) => {
+    setFilter((current) => ({
+      ...current,
+      levels: current.levels.includes(level)
+        ? current.levels.filter((item) => item !== level)
+        : [...current.levels, level],
+    }))
+  }, [])
+
   const openFind = useCallback(() => {
     const editor = editorRef.current
     editor?.focus()
@@ -361,8 +520,16 @@ export default function LogViewer() {
     : reading
       ? 'Reading…'
       : [
-          `${lineCount.toLocaleString()} lines`,
+          shownLines
+            ? `${shownLines.length.toLocaleString()} of ${plural(lineCount, 'line', 'lines')}`
+            : plural(lineCount, 'line', 'lines'),
           `${content.length.toLocaleString()} characters`,
+          logIndex.errorLines.length > 0
+            ? plural(logIndex.errorLines.length, 'error', 'errors')
+            : null,
+          logIndex.warningLines.length > 0
+            ? plural(logIndex.warningLines.length, 'warning', 'warnings')
+            : null,
           encoding && encoding !== 'utf-8' ? ENCODING_LABELS[encoding] : null,
           waiting ? 'update waiting' : null,
           truncated ? 'showing tail' : null,
@@ -457,29 +624,107 @@ export default function LogViewer() {
         onDrop={handleBrowserDrop}
       >
         {fileName ? (
-          <div className="relative min-h-0 flex-1 overflow-hidden border-t border-[var(--color-border)]">
-            <Editor
-              path={filePath ?? 'log-viewer'}
-              theme={monacoTheme}
-              language="plaintext"
-              value={content}
-              onMount={handleMount}
-              options={editorOptions}
-            />
-            {!following && content && (
+          <>
+            <div className="flex flex-wrap items-center gap-2 border-t border-[var(--color-border)] px-3 py-1.5">
+              <SearchInput
+                value={filter.query}
+                onValueChange={(query) => setFilter((current) => ({ ...current, query }))}
+                placeholder={filter.regex ? 'Filter lines by regex' : 'Filter lines'}
+                aria-label="Filter lines"
+                clearLabel="Clear filter"
+                className="w-56"
+              />
               <Button
-                variant="primary"
-                size="sm"
-                className="absolute right-6 bottom-3 z-10"
-                onClick={() => setFollowing(true)}
+                variant={filter.regex ? 'primary' : 'ghost'}
+                size="xs"
+                onClick={() => setFilter((current) => ({ ...current, regex: !current.regex }))}
+                aria-pressed={filter.regex}
+                aria-label="Regular expression"
+                title="Filter with a regular expression"
+                className="h-6 font-mono"
               >
-                <ArrowDownIcon size={14} aria-hidden="true" />
-                {newLines > 0
-                  ? `Jump to end · ${newLines.toLocaleString()} new ${newLines === 1 ? 'line' : 'lines'}`
-                  : 'Jump to end'}
+                .*
               </Button>
-            )}
-          </div>
+              <ToolbarGroup label="Levels" className="gap-1">
+                {LOG_LEVELS.map((level) => {
+                  const pressed = filter.levels.includes(level)
+                  return (
+                    <Button
+                      key={level}
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => toggleLevel(level)}
+                      aria-pressed={pressed}
+                      className={
+                        pressed ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]' : ''
+                      }
+                    >
+                      {LEVEL_LABELS[level]}
+                    </Button>
+                  )
+                })}
+              </ToolbarGroup>
+              {filtered && !filtered.ok && (
+                <span role="alert" className="text-xs text-[var(--color-error)]">
+                  Invalid regex: {filtered.error}
+                </span>
+              )}
+              <span className="ml-auto" />
+              <ToolbarGroup label="Errors" className="gap-1">
+                <Button
+                  variant="icon"
+                  size="sm"
+                  onClick={() => goToError(-1)}
+                  disabled={errorViewLines.length === 0}
+                  aria-label="Previous error"
+                >
+                  <CaretUpIcon size={14} aria-hidden="true" />
+                </Button>
+                <Button
+                  variant="icon"
+                  size="sm"
+                  onClick={() => goToError(1)}
+                  disabled={errorViewLines.length === 0}
+                  aria-label="Next error"
+                >
+                  <CaretDownIcon size={14} aria-hidden="true" />
+                </Button>
+              </ToolbarGroup>
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={toggleWordWrap}
+                aria-pressed={wordWrap}
+                title={`Toggle word wrap (${formatShortcut('alt+z')})`}
+              >
+                Wrap: {wordWrap ? 'On' : 'Off'}
+              </Button>
+            </div>
+            <div className="relative min-h-0 flex-1 overflow-hidden border-t border-[var(--color-border)]">
+              <Editor
+                path={filePath ?? 'log-viewer'}
+                theme={monacoTheme}
+                language={LOG_LANGUAGE_ID}
+                beforeMount={registerLogLanguage}
+                value={viewText}
+                onMount={handleMount}
+                options={editorOptions}
+              />
+              {!following && content && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="absolute right-6 bottom-3 z-10"
+                  onClick={() => setFollowing(true)}
+                >
+                  <ArrowDownIcon size={14} aria-hidden="true" />
+                  {newLines > 0
+                    ? `Jump to end · ${newLines.toLocaleString()} new ${newLines === 1 ? 'line' : 'lines'}`
+                    : 'Jump to end'}
+                </Button>
+              )}
+            </div>
+          </>
         ) : (
           <EmptyState
             icon={FileIcon}

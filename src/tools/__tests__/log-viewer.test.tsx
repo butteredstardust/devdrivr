@@ -210,6 +210,64 @@ describe('LogViewer', () => {
     expect(screen.queryByTestId('monaco-editor')).not.toBeInTheDocument()
   })
 
+  it('removes ANSI escapes from content without a path', () => {
+    renderTool(LogViewer)
+    act(() => {
+      dispatchToolAction({ type: 'open-file', content: '\x1b[31mred\x1b[0m\n', filename: 'c.log' })
+    })
+    expect(editor()).toHaveValue('red\n')
+  })
+
+  it('filters lines by text, regex and level, and counts errors and warnings', async () => {
+    writeFile('/tmp/app.log', 'INFO start\nERROR failed\n  at main.js:1\nWARN slow disk\nINFO done')
+    renderTool(LogViewer)
+    openPath('/tmp/app.log')
+    await waitFor(() => expect(screen.getByText(/1 error · 1 warning/)).toBeInTheDocument())
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Filter lines' }), {
+      target: { value: 'disk' },
+    })
+    await waitFor(() => expect(editor()).toHaveValue('WARN slow disk'))
+    expect(screen.getByText(/1 of 5 lines/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filter' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Error' }))
+    await waitFor(() => expect(editor()).toHaveValue('ERROR failed\n  at main.js:1'))
+    expect(screen.getByRole('button', { name: 'Error' })).toHaveAttribute('aria-pressed', 'true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Regular expression' }))
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Filter lines' }), {
+      target: { value: '(' },
+    })
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Invalid regex'))
+  })
+
+  it('shows appends in a filtered view', async () => {
+    writeFile('/tmp/app.log', 'INFO a\nERROR b\n')
+    renderTool(LogViewer)
+    openPath('/tmp/app.log')
+    await waitFor(() => expect(editor()).toHaveValue('INFO a\nERROR b\n'))
+    fireEvent.click(screen.getByRole('button', { name: 'Error' }))
+    await waitFor(() => expect(editor()).toHaveValue('ERROR b'))
+
+    writeFile('/tmp/app.log', 'INFO a\nERROR b\nINFO c\nERROR d\n')
+    await change()
+
+    await waitFor(() => expect(editor()).toHaveValue('ERROR b\nERROR d'))
+  })
+
+  it('toggles word wrap', async () => {
+    writeFile('/tmp/app.log', 'line')
+    renderTool(LogViewer)
+    openPath('/tmp/app.log')
+    await waitFor(() => expect(editor()).toHaveValue('line'))
+
+    const wrap = screen.getByRole('button', { name: /Wrap:/ })
+    const before = wrap.getAttribute('aria-pressed')
+    fireEvent.click(wrap)
+    expect(wrap).not.toHaveAttribute('aria-pressed', before)
+  })
+
   it('opens a selected path from its toolbar action', async () => {
     writeFile('/tmp/service.log', 'toolbar open')
     vi.mocked(pickTextFilePath).mockResolvedValue('/tmp/service.log')

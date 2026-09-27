@@ -50,6 +50,16 @@ File dialogs and `fs` resolve to `null`. The stub logs `[tauri-stub] unhandled c
 
 The Log Viewer reads again within 2 s, because the stub has no filesystem watch.
 
+Import `tool-actions.ts` from the URL that the app loaded. After Vite reloads a module, the app imports it with a `?t=` query. A plain `import('/src/lib/tool-actions.ts')` then gets a second module instance, and its dispatch reaches no tool.
+
+```js
+const url = performance
+  .getEntriesByType('resource')
+  .map((entry) => entry.name)
+  .find((name) => name.includes('/src/lib/tool-actions.ts'))
+const { dispatchToolAction } = await import(url)
+```
+
 ## Operating rules
 
 - Wait ~1800ms after a Monaco Split-mode change. The pane can still reflow after the DOM is ready.
