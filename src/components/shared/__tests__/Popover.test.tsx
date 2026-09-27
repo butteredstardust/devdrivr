@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Popover } from '@/components/shared/Popover'
 
 afterEach(cleanup)
 
-function PopoverHarness({ align }: { align?: 'start' | 'end' } = {}) {
+function PopoverHarness({
+  align,
+  placement,
+}: { align?: 'start' | 'end'; placement?: 'below' | 'above' } = {}) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -16,6 +19,7 @@ function PopoverHarness({ align }: { align?: 'start' | 'end' } = {}) {
         onOpenChange={setOpen}
         label="Example popover"
         {...(align ? { align } : {})}
+        {...(placement ? { placement } : {})}
         trigger={(props) => (
           <button type="button" {...props}>
             Open popover
@@ -81,6 +85,29 @@ describe('Popover', () => {
       expect(parseFloat(top) + parseFloat(maxHeight)).toBeLessThanOrEqual(100)
       expect(parseFloat(top)).toBeGreaterThanOrEqual(0)
     } finally {
+      Object.defineProperty(window, 'innerHeight', { value: originalHeight, configurable: true })
+    }
+  })
+
+  it('stands an above surface on its trigger and keeps its top on screen', () => {
+    const originalHeight = window.innerHeight
+    Object.defineProperty(window, 'innerHeight', { value: 400, configurable: true })
+    const rect = { top: 380, bottom: 400, left: 0, right: 50, width: 50, height: 20 }
+    const spy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockReturnValue({ ...rect, x: 0, y: 380, toJSON: () => rect } as DOMRect)
+
+    try {
+      render(<PopoverHarness placement="above" />)
+      fireEvent.click(screen.getByRole('button', { name: 'Open popover' }))
+
+      const { top, bottom, maxHeight } = screen.getByRole('dialog').style
+      expect(top).toBe('')
+      // The surface ends 6px above the trigger top (380), measured from the window bottom.
+      expect(parseFloat(bottom)).toBe(400 - 380 + 6)
+      expect(400 - parseFloat(bottom) - parseFloat(maxHeight)).toBeGreaterThanOrEqual(0)
+    } finally {
+      spy.mockRestore()
       Object.defineProperty(window, 'innerHeight', { value: originalHeight, configurable: true })
     }
   })

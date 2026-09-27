@@ -20,6 +20,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
+use tauri::ipc::Response;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_fs::FsExt;
 
@@ -170,13 +171,16 @@ pub fn opened_files_take(app: AppHandle) -> Vec<String> {
     std::mem::take(&mut *pending)
 }
 
-/// Reads a file the OS opened. Refuses every other path.
+/// Reads a file the OS opened, as raw bytes. Refuses every other path.
+///
+/// The bytes go to the frontend unchanged, so it can detect the encoding. Decoding here as UTF-8
+/// would refuse a UTF-16 or Windows-1252 file before the frontend can read it.
 #[tauri::command]
 pub fn opened_file_read(
     app: AppHandle,
     path: String,
     max_bytes: Option<u64>,
-) -> Result<String, String> {
+) -> Result<Response, String> {
     let resolved = canonical(&path).ok_or_else(|| format!("Unable to resolve \"{path}\""))?;
     let state = app.state::<OpenedFiles>();
     if !lock(&state.allowed).contains(&resolved) {
@@ -194,7 +198,9 @@ pub fn opened_file_read(
             ));
         }
     }
-    std::fs::read_to_string(&resolved).map_err(|err| format!("Unable to read \"{path}\": {err}"))
+    std::fs::read(&resolved)
+        .map(Response::new)
+        .map_err(|err| format!("Unable to read \"{path}\": {err}"))
 }
 
 #[cfg(test)]

@@ -107,6 +107,18 @@ describe('useNativeFileDrop', () => {
     expect((onFile.mock.calls[0] as [File, string])[1]).toBe('/tmp/photo.png')
   })
 
+  it('sends only the path when the tool reads the file itself', async () => {
+    const onPath = vi.fn()
+    render({ onPath, onError: vi.fn(), maxBytes: 1024 })
+    await waitFor(() => expect(mocks.eventHandler).not.toBeNull())
+
+    drop({ type: 'drop', paths: ['/var/log/app.log'], position: { x: 10, y: 10 } })
+
+    await waitFor(() => expect(onPath).toHaveBeenCalledWith('/var/log/app.log'))
+    expect(stat).not.toHaveBeenCalled()
+    expect(readFile).not.toHaveBeenCalled()
+  })
+
   // Reading the bytes to find out the file is too large is how a drop takes the window down.
   it('rejects an oversized file before reading it', async () => {
     vi.mocked(stat).mockResolvedValue({ size: 4096 } as Awaited<ReturnType<typeof stat>>)

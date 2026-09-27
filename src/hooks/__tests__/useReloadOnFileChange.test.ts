@@ -70,6 +70,63 @@ describe('useReloadOnFileChange', () => {
     expect(unwatch).toHaveBeenCalledOnce()
   })
 
+  it('reads through a custom reader and passes its encoding on', async () => {
+    let callback: WatchCallback | undefined
+    watchMock.mockImplementation(async (_path: string, next: WatchCallback) => {
+      callback = next
+      return vi.fn()
+    })
+    const readText = vi.fn().mockResolvedValue({ content: 'café', encoding: 'windows-1252' })
+    const onReload = vi.fn()
+
+    renderHook(() =>
+      useReloadOnFileChange({
+        filePath: '/tmp/old.txt',
+        getContent: () => 'before',
+        readText,
+        onReload,
+      })
+    )
+    await waitFor(() => expect(watchMock).toHaveBeenCalled())
+    await act(async () => callback?.(changedEvent()))
+
+    expect(readSupportedTextFile).not.toHaveBeenCalled()
+    expect(onReload).toHaveBeenCalledWith({
+      content: 'café',
+      filename: 'old.txt',
+      path: '/tmp/old.txt',
+      encoding: 'windows-1252',
+    })
+  })
+
+  it('reloads a file saved again in another encoding with the same text', async () => {
+    let callback: WatchCallback | undefined
+    watchMock.mockImplementation(async (_path: string, next: WatchCallback) => {
+      callback = next
+      return vi.fn()
+    })
+    const readText = vi.fn().mockResolvedValue({ content: 'same', encoding: 'utf-16le' })
+    const onReload = vi.fn()
+    let savedEncoding: 'utf-8' | 'utf-16le' = 'utf-16le'
+
+    renderHook(() =>
+      useReloadOnFileChange({
+        filePath: '/tmp/same.txt',
+        getContent: () => 'same',
+        getSavedEncoding: () => savedEncoding,
+        readText,
+        onReload,
+      })
+    )
+    await waitFor(() => expect(watchMock).toHaveBeenCalled())
+    await act(async () => callback?.(changedEvent()))
+    expect(onReload).not.toHaveBeenCalled()
+
+    savedEncoding = 'utf-8'
+    await act(async () => callback?.(changedEvent()))
+    expect(onReload).toHaveBeenCalledWith(expect.objectContaining({ encoding: 'utf-16le' }))
+  })
+
   it('moves the watcher when the open document path changes', async () => {
     const unwatchFirst = vi.fn()
     const unwatchSecond = vi.fn()

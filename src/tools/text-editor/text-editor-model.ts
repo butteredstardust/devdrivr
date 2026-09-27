@@ -21,6 +21,7 @@ export const TEXT_EDITOR_LANGUAGES: TextEditorLanguage[] = [
   { id: 'powershell', label: 'PowerShell' },
   { id: 'bat', label: 'Batch' },
   { id: 'ini', label: 'INI / Config' },
+  { id: 'toml', label: 'TOML' },
   { id: 'dockerfile', label: 'Dockerfile' },
   { id: 'sql', label: 'SQL' },
   { id: 'graphql', label: 'GraphQL' },
@@ -41,13 +42,16 @@ export const TEXT_EDITOR_LANGUAGES: TextEditorLanguage[] = [
 ]
 
 const LANGUAGE_BY_EXTENSION: Record<string, string> = {
+  bash: 'shell',
   bat: 'bat',
+  cjs: 'javascript',
   c: 'cpp',
   cc: 'cpp',
   cfg: 'ini',
   conf: 'ini',
   cpp: 'cpp',
   cs: 'csharp',
+  cts: 'typescript',
   css: 'css',
   dart: 'dart',
   env: 'ini',
@@ -69,10 +73,13 @@ const LANGUAGE_BY_EXTENSION: Record<string, string> = {
   kts: 'kotlin',
   less: 'less',
   lua: 'lua',
+  mjs: 'javascript',
+  mts: 'typescript',
   md: 'markdown',
   mdx: 'mdx',
   php: 'php',
   pl: 'perl',
+  pm: 'perl',
   ps1: 'powershell',
   py: 'python',
   r: 'r',
@@ -82,7 +89,8 @@ const LANGUAGE_BY_EXTENSION: Record<string, string> = {
   sh: 'shell',
   sql: 'sql',
   swift: 'swift',
-  toml: 'ini',
+  tf: 'hcl',
+  toml: 'toml',
   ts: 'typescript',
   tsx: 'typescript',
   vue: 'html',
@@ -119,7 +127,12 @@ export function detectTextEditorLanguage(filename: string | null): string {
   return LANGUAGE_BY_EXTENSION[base.slice(dot + 1)] ?? 'plaintext'
 }
 
-export function lineEndingLabel(content: string): 'CRLF' | 'LF' {
+export type LineEnding = 'LF' | 'CRLF'
+
+/** Selected character count across all cursors. `selections` counts every cursor. */
+export type SelectionSummary = { characters: number; selections: number }
+
+export function lineEndingLabel(content: string): LineEnding {
   return content.includes('\r\n') ? 'CRLF' : 'LF'
 }
 

@@ -1,5 +1,6 @@
 mod batch;
 mod file_associations;
+mod log_files;
 mod mcp;
 mod note_assets;
 mod opened_files;
@@ -185,6 +186,8 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_fs::init())
+        // Register after fs. It restores the fs scope that earlier dialogs granted.
+        .plugin(tauri_plugin_persisted_scope::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
         // Links rendered inside the app (Markdown preview, docs, notes) must leave for the user's
@@ -202,6 +205,7 @@ pub fn run() {
             exit_after_flush,
             file_associations::file_association_set,
             file_associations::file_associations_status,
+            log_files::log_file_read,
             window_commands::window_close,
             window_commands::window_focus,
             window_commands::window_get_state,

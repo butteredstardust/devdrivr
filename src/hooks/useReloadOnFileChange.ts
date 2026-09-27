@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { watch, type WatchEvent } from '@tauri-apps/plugin-fs'
 import { filenameFromPath, readSupportedTextFile } from '@/lib/file-io'
+import type { TextFileEncoding } from '@/lib/text-encoding'
 import { subscribeTextFileWrite } from '@/lib/text-file-write-events'
 import { useUiStore } from '@/stores/ui.store'
 
@@ -8,7 +9,18 @@ export type ReloadedTextFile = {
   content: string
   filename: string
   path: string
+  /** Set only when a custom `readText` reports it. */
+  encoding?: TextFileEncoding
 }
+
+type ReadText = (
+  path: string,
+  options?: { maxBytes?: number }
+) => Promise<{ content: string; encoding?: TextFileEncoding }>
+
+const readUtf8Text: ReadText = async (path, options) => ({
+  content: await readSupportedTextFile(path, options),
+})
 
 type ReloadOnFileChangeOptions = {
   filePath: string | null
@@ -17,6 +29,18 @@ type ReloadOnFileChangeOptions = {
   getContent: () => string
   onReload: (file: ReloadedTextFile) => void
   onError?: (message: string) => void
+  /**
+   * Reads the file. Defaults to lossy UTF-8.
+   *
+   * An editor that saves in another encoding must read in that encoding too. Otherwise its own
+   * save reads back as different content and looks like an external change.
+   */
+  readText?: ReadText
+  /**
+   * Returns the encoding of the last save. A read in another encoding is then an external change,
+   * even when the text is the same. Needs a `readText` that reports the encoding.
+   */
+  getSavedEncoding?: () => TextFileEncoding
   /**
    * Keeps the editor content when it differs from the last known disk content.
    *
@@ -99,10 +123,15 @@ export function useReloadOnFileChange(options: ReloadOnFileChangeOptions): void 
         do {
           readAgain = false
           try {
-            const content = await readSupportedTextFile(path, readOptions())
+            const { content, encoding } = await (optionsRef.current.readText ?? readUtf8Text)(
+              path,
+              readOptions()
+            )
             if (cancelled) return
             const current = optionsRef.current.getContent()
-            if (content === current || appWriteContent === content) {
+            const savedEncoding = optionsRef.current.getSavedEncoding?.()
+            const sameEncoding = !encoding || !savedEncoding || encoding === savedEncoding
+            if (sameEncoding && (content === current || appWriteContent === content)) {
               diskBaseline = content
               continue
             }
@@ -121,7 +150,12 @@ export function useReloadOnFileChange(options: ReloadOnFileChangeOptions): void 
               continue
             }
             diskBaseline = content
-            optionsRef.current.onReload({ content, filename, path })
+            optionsRef.current.onReload({
+              content,
+              filename,
+              path,
+              ...(encoding ? { encoding } : {}),
+            })
           } catch (error) {
             if (!cancelled) {
               const message = error instanceof Error ? error.message : String(error)
@@ -137,7 +171,7 @@ export function useReloadOnFileChange(options: ReloadOnFileChangeOptions): void 
 
     const readBaseline = async () => {
       try {
-        const content = await readSupportedTextFile(path, readOptions())
+        const { content } = await (optionsRef.current.readText ?? readUtf8Text)(path, readOptions())
         // An app write during the read sets a newer baseline. Keep that one.
         if (diskBaseline === null) diskBaseline = content
       } catch {

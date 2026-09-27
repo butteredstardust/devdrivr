@@ -10,6 +10,7 @@ import { Field } from '@/components/shared/Field'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { TextArea } from '@/components/shared/TextArea'
 import { ArrowUpIcon, TextAaIcon } from '@phosphor-icons/react'
+import { CASE_CONVERSIONS, toWords } from '@/lib/text-case'
 
 type CaseConverterState = {
   input: string
@@ -22,16 +23,6 @@ type CaseResult = {
 }
 
 // ── Logic ──────────────────────────────────────────────────────────
-
-function toWords(str: string): string[] {
-  return str
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
-    .replace(/[-_./]+/g, ' ')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-}
 
 export function detectCase(input: string): string | null {
   const trimmed = input.trim()
@@ -51,100 +42,11 @@ export function detectCase(input: string): string | null {
 
 export function computeCases(input: string): CaseResult[] {
   if (!input.trim()) return []
-  const perLine = (convert: (line: string) => string) =>
-    input
-      .split('\n')
-      .map((line) => convert(line))
-      .join('\n')
-
-  return [
-    { id: 'upper', label: 'UPPERCASE', value: perLine((line) => line.toUpperCase()) },
-    { id: 'lower', label: 'lowercase', value: perLine((line) => line.toLowerCase()) },
-    {
-      id: 'title',
-      label: 'Title Case',
-      value: perLine((line) => {
-        const lineWords = toWords(line).map((word) => word.toLowerCase())
-        return lineWords.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
-      }),
-    },
-    {
-      id: 'sentence',
-      label: 'Sentence case',
-      value: perLine((line) => {
-        const lineWords = toWords(line).map((word) => word.toLowerCase())
-        return lineWords
-          .map((w, i) => (i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w))
-          .join(' ')
-      }),
-    },
-    {
-      id: 'camel',
-      label: 'camelCase',
-      value: perLine((line) => {
-        const lineWords = toWords(line).map((word) => word.toLowerCase())
-        return lineWords
-          .map((w, i) => (i === 0 ? w : w.charAt(0).toUpperCase() + w.slice(1)))
-          .join('')
-      }),
-    },
-    {
-      id: 'pascal',
-      label: 'PascalCase',
-      value: perLine((line) =>
-        toWords(line)
-          .map((word) => word.toLowerCase())
-          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-          .join('')
-      ),
-    },
-    {
-      id: 'snake',
-      label: 'snake_case',
-      value: perLine((line) =>
-        toWords(line)
-          .map((word) => word.toLowerCase())
-          .join('_')
-      ),
-    },
-    {
-      id: 'screaming',
-      label: 'SCREAMING_SNAKE',
-      value: perLine((line) =>
-        toWords(line)
-          .map((word) => word.toLowerCase())
-          .join('_')
-          .toUpperCase()
-      ),
-    },
-    {
-      id: 'kebab',
-      label: 'kebab-case',
-      value: perLine((line) =>
-        toWords(line)
-          .map((word) => word.toLowerCase())
-          .join('-')
-      ),
-    },
-    {
-      id: 'dot',
-      label: 'dot.case',
-      value: perLine((line) =>
-        toWords(line)
-          .map((word) => word.toLowerCase())
-          .join('.')
-      ),
-    },
-    {
-      id: 'path',
-      label: 'path/case',
-      value: perLine((line) =>
-        toWords(line)
-          .map((word) => word.toLowerCase())
-          .join('/')
-      ),
-    },
-  ]
+  return CASE_CONVERSIONS.map(({ id, label, convert }) => ({
+    id,
+    label,
+    value: input.split('\n').map(convert).join('\n'),
+  }))
 }
 
 // ── Component ──────────────────────────────────────────────────────

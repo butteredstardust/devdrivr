@@ -51,8 +51,9 @@ type PopoverProps = {
   /**
    * `below` hangs the surface under the trigger; `side` puts it beside the trigger's right edge,
    * level with its top. `side` is for a narrow vertical rail, where "below" is another trigger.
+   * `above` stands the surface on the trigger. Use it for a status bar at the window bottom.
    */
-  placement?: 'below' | 'side'
+  placement?: 'below' | 'side' | 'above'
   className?: string
   /**
    * Keys the surface's content wants that only reach it when focus is on the surface itself —
@@ -178,19 +179,37 @@ export function Popover({
         return
       }
 
-      let top = rect.bottom + GAP
-      let maxHeight = window.innerHeight - top - EDGE
+      let next: CSSProperties
 
-      if (maxHeight < MIN_HEIGHT) {
-        // Too little room below to be usable. Lift the surface until its floor is back on
-        // screen rather than letting the bottom overhang: a `fixed` surface cannot be scrolled
-        // to, so anything past the viewport edge — the footer, and a reset action with it — is
-        // not merely clipped but unreachable. Overlapping the trigger is the lesser harm.
-        maxHeight = Math.min(MIN_HEIGHT, window.innerHeight - EDGE * 2)
-        top = Math.max(EDGE, window.innerHeight - EDGE - maxHeight)
+      if (placement === 'above') {
+        // Anchor by the bottom edge, so the surface grows upwards without a measurement. With
+        // too little room above, lower the surface over the trigger to keep its top on screen.
+        const maxHeight = Math.min(
+          Math.max(MIN_HEIGHT, rect.top - GAP - EDGE),
+          window.innerHeight - EDGE * 2
+        )
+        next = {
+          bottom: Math.min(
+            window.innerHeight - rect.top + GAP,
+            window.innerHeight - EDGE - maxHeight
+          ),
+          maxHeight,
+        }
+      } else {
+        let top = rect.bottom + GAP
+        let maxHeight = window.innerHeight - top - EDGE
+
+        if (maxHeight < MIN_HEIGHT) {
+          // Too little room below to be usable. Lift the surface until its floor is back on
+          // screen rather than letting the bottom overhang: a `fixed` surface cannot be scrolled
+          // to, so anything past the viewport edge — the footer, and a reset action with it — is
+          // not merely clipped but unreachable. Overlapping the trigger is the lesser harm.
+          maxHeight = Math.min(MIN_HEIGHT, window.innerHeight - EDGE * 2)
+          top = Math.max(EDGE, window.innerHeight - EDGE - maxHeight)
+        }
+
+        next = { top, maxHeight }
       }
-
-      const next: CSSProperties = { top, maxHeight }
 
       if (align === 'end') {
         next.right = Math.max(EDGE, window.innerWidth - rect.right)
@@ -204,6 +223,7 @@ export function Popover({
       setPosition((prev) =>
         prev &&
         prev.top === next.top &&
+        prev.bottom === next.bottom &&
         prev.maxHeight === next.maxHeight &&
         prev.right === next.right &&
         prev.left === next.left

@@ -26,6 +26,34 @@ export const EXTENSION_TOOL_IDS: Record<string, string> = {
   rs: 'text-editor',
   go: 'text-editor',
   java: 'text-editor',
+  bash: 'text-editor',
+  c: 'text-editor',
+  cc: 'text-editor',
+  cpp: 'text-editor',
+  h: 'text-editor',
+  hpp: 'text-editor',
+  cs: 'text-editor',
+  kt: 'text-editor',
+  kts: 'text-editor',
+  php: 'text-editor',
+  rb: 'text-editor',
+  swift: 'text-editor',
+  dart: 'text-editor',
+  lua: 'text-editor',
+  pl: 'text-editor',
+  pm: 'text-editor',
+  // Routed, but not in `bundle.fileAssociations`. On Windows that claim replaces the handler that
+  // runs the script.
+  ps1: 'text-editor',
+  bat: 'text-editor',
+  hcl: 'text-editor',
+  tf: 'text-editor',
+  sql: 'text-editor',
+  graphql: 'text-editor',
+  gql: 'text-editor',
+  proto: 'text-editor',
+  scss: 'text-editor',
+  less: 'text-editor',
   json: 'json-tools',
   yaml: 'yaml-tools',
   yml: 'yaml-tools',
@@ -37,6 +65,10 @@ export const EXTENSION_TOOL_IDS: Record<string, string> = {
   mmd: 'mermaid-editor',
   mermaid: 'mermaid-editor',
   log: 'log-viewer',
+  // Routed, but not in `bundle.fileAssociations`. Other programs also write `.out` and `.err`
+  // files, and a compiler writes its binary to `a.out`.
+  out: 'log-viewer',
+  err: 'log-viewer',
   css: 'css-validator',
   html: 'html-validator',
   htm: 'html-validator',
@@ -44,6 +76,11 @@ export const EXTENSION_TOOL_IDS: Record<string, string> = {
   tsx: 'text-editor',
   js: 'text-editor',
   jsx: 'text-editor',
+  mjs: 'text-editor',
+  cjs: 'text-editor',
+  mts: 'text-editor',
+  cts: 'text-editor',
+  mdx: 'text-editor',
 }
 
 /**
@@ -60,9 +97,13 @@ export function extensionOf(pathOrName: string): string {
   return dot < 1 ? '' : name.slice(dot + 1).toLowerCase()
 }
 
+/** A log that a rotation renamed, for example `app.log.1`. */
+const ROTATED_LOG = /\.log\.\d+$/i
+
 /** The tool that opens this file. Always returns a tool that accepts file content. */
 export function toolIdForFile(pathOrName: string): string {
-  const toolId = EXTENSION_TOOL_IDS[extensionOf(pathOrName)]
+  const extension = ROTATED_LOG.test(pathOrName) ? 'log' : extensionOf(pathOrName)
+  const toolId = EXTENSION_TOOL_IDS[extension]
   return toolId && OPEN_FILE_TOOL_IDS.has(toolId) ? toolId : FALLBACK_OPEN_FILE_TOOL
 }
 
