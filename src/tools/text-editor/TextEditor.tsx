@@ -28,6 +28,7 @@ import {
 } from '@/lib/file-io'
 import { MAX_EDITABLE_TEXT_FILE_BYTES } from '@/lib/file-limits'
 import { textEncodingLabel, type DecodedText, type TextFileEncoding } from '@/lib/text-encoding'
+import { useRecentFilesStore } from '@/stores/recent-files.store'
 import { useUiStore } from '@/stores/ui.store'
 import {
   countLines,
@@ -36,6 +37,8 @@ import {
   type LineEnding,
   type SelectionSummary,
 } from '@/tools/text-editor/text-editor-model'
+import { RecentFilesMenu } from '@/tools/text-editor/RecentFilesMenu'
+import { registerTomlLanguage } from '@/tools/text-editor/toml-language'
 import { TextEditorStatusBar, type Indentation } from '@/tools/text-editor/TextEditorStatusBar'
 
 type TextEditorState = {
@@ -50,9 +53,11 @@ type TextEditorState = {
   savedEncoding: TextFileEncoding
   /** True after the user picks a language. Save As then keeps it instead of detecting one. */
   languageManual: boolean
+  /** Wraps long lines in this tab. `null` follows Settings. */
+  wordWrap: boolean | null
 }
 
-type PendingDocument = Omit<TextEditorState, 'savedEncoding' | 'languageManual'> & {
+type PendingDocument = Omit<TextEditorState, 'savedEncoding' | 'languageManual' | 'wordWrap'> & {
   source: 'document' | 'disk'
   successMessage: string
 }
@@ -66,20 +71,39 @@ function describe(error: unknown): string {
 const readEditableText = (path: string): Promise<DecodedText> =>
   readEncodedTextFile(path, { maxBytes: MAX_EDITABLE_TEXT_FILE_BYTES })
 
+/**
+ * Marks a restored language as manual when it differs from the detected one. State saved before
+ * `languageManual` existed restores it as `false`. A document with `false` always has the detected
+ * language, so this rule is exact for current state too.
+ */
+function restoreLanguageManual(state: TextEditorState): TextEditorState {
+  if (state.languageManual || state.language === detectTextEditorLanguage(state.fileName)) {
+    return state
+  }
+  return { ...state, languageManual: true }
+}
+
 export default function TextEditor() {
   const { theme: monacoTheme, options: monacoOptions } = useMonaco()
   const instanceKey = useToolInstance()?.stateKey ?? 'text-editor'
-  const [state, updateState] = useToolState<TextEditorState>('text-editor', {
-    content: '',
-    savedContent: '',
-    fileName: null,
-    filePath: null,
-    language: 'plaintext',
-    encoding: 'utf-8',
-    savedEncoding: 'utf-8',
-    languageManual: false,
-  })
+  const [state, updateState] = useToolState<TextEditorState>(
+    'text-editor',
+    {
+      content: '',
+      savedContent: '',
+      fileName: null,
+      filePath: null,
+      language: 'plaintext',
+      encoding: 'utf-8',
+      savedEncoding: 'utf-8',
+      languageManual: false,
+      wordWrap: null,
+    },
+    { validate: restoreLanguageManual }
+  )
   const setLastAction = useUiStore((s) => s.setLastAction)
+  const recordRecentFile = useRecentFilesStore((s) => s.record)
+  const removeRecentFile = useRecentFilesStore((s) => s.remove)
   const copy = useCopyToClipboard()
   const editorRef = useRef<MonacoInstance | null>(null)
   const monacoRef = useRef<Parameters<OnMount>[1] | null>(null)
@@ -141,8 +165,11 @@ export default function TextEditor() {
       setDocumentGeneration((generation) => generation + 1)
       setCursor({ line: 1, column: 1 })
       setLastAction(document.successMessage, 'success')
+      if (document.filePath && document.source === 'document') {
+        void recordRecentFile(document.filePath)
+      }
     },
-    [setLastAction, updateState]
+    [recordRecentFile, setLastAction, updateState]
   )
 
   const requestDocument = useCallback(
@@ -221,6 +248,24 @@ export default function TextEditor() {
     }
   }, [openDocument, setLastAction])
 
+  const openRecentFile = useCallback(
+    async (path: string) => {
+      const request = ++openRequestRef.current
+      try {
+        const decoded = await readEditableText(path)
+        if (request === openRequestRef.current) {
+          openDocument({ ...decoded, filename: filenameFromPath(path), path })
+        }
+      } catch (error) {
+        if (request !== openRequestRef.current) return
+        // A file that cannot be read now is moved, removed or out of scope. Keep the list useful.
+        void removeRecentFile(path)
+        setLastAction(`Open failed: ${describe(error)}. Removed it from recent files.`, 'error')
+      }
+    },
+    [openDocument, removeRecentFile, setLastAction]
+  )
+
   const markSaved = useCallback(
     (saved: {
       filePath: string
@@ -241,8 +286,9 @@ export default function TextEditor() {
         savedEncoding: saved.encoding,
         ...(saved.language ? { language: saved.language } : {}),
       })
+      void recordRecentFile(saved.filePath)
     },
-    [updateState]
+    [recordRecentFile, updateState]
   )
 
   const handleSaveAs = useCallback(async () => {
@@ -333,12 +379,24 @@ export default function TextEditor() {
     }
   })
 
+  const wordWrap = state.wordWrap ?? monacoOptions.wordWrap === 'on'
+  const wordWrapRef = useRef(wordWrap)
+  wordWrapRef.current = wordWrap
+  const toggleWordWrap = useCallback(() => {
+    updateState({ wordWrap: !wordWrapRef.current })
+  }, [updateState])
+  const toggleWordWrapRef = useRef(toggleWordWrap)
+  toggleWordWrapRef.current = toggleWordWrap
+
   const editorOptions = useMemo(
     () => ({
       ...monacoOptions,
       renderValidationDecorations: 'on' as const,
+      wordWrap: wordWrap ? ('on' as const) : ('off' as const),
+      // Pin the horizontal scrollbar when lines do not wrap. Monaco hides it until a scroll.
+      scrollbar: { ...monacoOptions.scrollbar, horizontal: wordWrap ? 'auto' : 'visible' } as const,
     }),
-    [monacoOptions]
+    [monacoOptions, wordWrap]
   )
   const lineCount = useMemo(() => countLines(state.content), [state.content])
   const shownIndentation = indentation ?? {
@@ -443,6 +501,12 @@ export default function TextEditor() {
     updateSelection()
     watchModel()
     editorSubscriptionsRef.current = [
+      editor.addAction({
+        id: 'devdrivr.toggleWordWrap',
+        label: 'Toggle Word Wrap',
+        keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.KeyZ],
+        run: () => toggleWordWrapRef.current(),
+      }),
       editor.onDidChangeCursorPosition(updateCursor),
       editor.onDidChangeCursorSelection(updateSelection),
       editor.onDidChangeModel(watchModel),
@@ -470,6 +534,7 @@ export default function TextEditor() {
             save={{ onClick: () => void handleSave(), label: 'Save file' }}
             saveAs={{ onClick: () => void handleSaveAs(), label: 'Save file as' }}
           />
+          <RecentFilesMenu onOpen={(path) => void openRecentFile(path)} />
           <ToolbarGroup label="Search and copy" separated>
             <Button
               variant="icon"
@@ -515,6 +580,7 @@ export default function TextEditor() {
             contentRef.current = content
             updateState({ content })
           }}
+          beforeMount={registerTomlLanguage}
           onMount={handleMount}
           options={editorOptions}
         />
@@ -523,6 +589,8 @@ export default function TextEditor() {
         cursor={cursor}
         selection={selection}
         onGoToLine={() => runEditorAction('editor.action.gotoLine')}
+        wordWrap={wordWrap}
+        onToggleWordWrap={toggleWordWrap}
         indentation={shownIndentation}
         onIndentationChange={changeIndentation}
         onConvertIndentation={(to) =>

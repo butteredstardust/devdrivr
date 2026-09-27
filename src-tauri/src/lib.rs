@@ -185,6 +185,8 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_fs::init())
+        // Register after fs. It restores the fs scope that earlier dialogs granted.
+        .plugin(tauri_plugin_persisted_scope::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
         // Links rendered inside the app (Markdown preview, docs, notes) must leave for the user's

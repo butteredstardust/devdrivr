@@ -83,6 +83,24 @@ describe('bundle file associations', () => {
       expect(EXTENSION_TOOL_IDS[ext], `${ext} has no route`).toBeDefined()
     }
   })
+
+  // A route with no association never appears in the system's "Open With" menu.
+  it('claims every extension it routes', () => {
+    const config = JSON.parse(
+      readFileSync(resolve(__dirname, '../../../src-tauri/tauri.conf.json'), 'utf8')
+    ) as { bundle: { fileAssociations: Array<{ ext: string[] }> } }
+
+    const declared = new Set(config.bundle.fileAssociations.flatMap((entry) => entry.ext))
+    for (const ext of Object.keys(EXTENSION_TOOL_IDS)) {
+      expect(declared.has(ext), `${ext} is not declared`).toBe(true)
+    }
+  })
+
+  it('opens common source files in the Text Editor', () => {
+    for (const name of ['main.c', 'App.kt', 'app.rb', 'index.php', 'View.swift', 'q.sql']) {
+      expect(toolIdForFile(name)).toBe('text-editor')
+    }
+  })
 })
 
 describe('openFileInTool', () => {

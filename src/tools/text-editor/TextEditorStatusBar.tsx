@@ -3,6 +3,7 @@ import { CheckIcon } from '@phosphor-icons/react'
 import { Button } from '@/components/shared/Button'
 import { Popover } from '@/components/shared/Popover'
 import { SectionLabel } from '@/components/shared/SectionLabel'
+import { formatShortcut } from '@/lib/shortcut-label'
 import { TEXT_FILE_ENCODINGS, textEncodingLabel, type TextFileEncoding } from '@/lib/text-encoding'
 import {
   TEXT_EDITOR_LANGUAGES,
@@ -18,6 +19,8 @@ type TextEditorStatusBarProps = {
   cursor: { line: number; column: number }
   selection: SelectionSummary
   onGoToLine: () => void
+  wordWrap: boolean
+  onToggleWordWrap: () => void
   indentation: Indentation
   onIndentationChange: (indentation: Indentation) => void
   onConvertIndentation: (to: 'spaces' | 'tabs') => void
@@ -65,7 +68,9 @@ function StatusMenu({
         </Button>
       )}
     >
-      <div className="flex min-w-44 flex-col py-1">{children(() => setOpen(false))}</div>
+      <div className="flex min-h-0 min-w-44 flex-col overflow-y-auto py-1">
+        {children(() => setOpen(false))}
+      </div>
     </Popover>
   )
 }
@@ -102,6 +107,8 @@ export function TextEditorStatusBar({
   cursor,
   selection,
   onGoToLine,
+  wordWrap,
+  onToggleWordWrap,
   indentation,
   onIndentationChange,
   onConvertIndentation,
@@ -130,6 +137,16 @@ export function TextEditorStatusBar({
         {selectionLabel(selection)}
       </Button>
       <span className="ml-auto" />
+      <Button
+        variant="ghost"
+        size="xs"
+        onClick={onToggleWordWrap}
+        aria-pressed={wordWrap}
+        title={`Toggle word wrap (${formatShortcut('alt+z')})`}
+        className="text-2xs"
+      >
+        Wrap: {wordWrap ? 'On' : 'Off'}
+      </Button>
       <StatusMenu label="Indentation" value={indentationLabel}>
         {(close) => (
           <>

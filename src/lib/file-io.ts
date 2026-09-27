@@ -68,6 +68,13 @@ const TEXT_FILE_EXTENSIONS = [
   'ps1',
   'bat',
   'hcl',
+  'tf',
+  'bash',
+  'mjs',
+  'cjs',
+  'mts',
+  'cts',
+  'pm',
 ] as const
 
 export function isLikelyBinaryText(content: string): boolean {

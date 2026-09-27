@@ -9,11 +9,19 @@ import {
 } from '@/tools/text-editor/text-editor-model'
 import { dispatchToolAction } from '@/lib/tool-actions'
 import { readEncodedTextFile, saveEncodedTextFile, saveFileDialog } from '@/lib/file-io'
+import { getSetting } from '@/lib/db'
+import { resetRecentFilesStore, useRecentFilesStore } from '@/stores/recent-files.store'
 import { useToolStateCache } from '@/stores/tool-state.store'
 import { renderTool } from '@/tools/__tests__/test-utils'
 
 vi.mock('@tauri-apps/plugin-fs', () => ({
   watch: vi.fn().mockResolvedValue(() => {}),
+}))
+
+vi.mock('@/lib/db', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/db')>()),
+  getSetting: vi.fn().mockResolvedValue([]),
+  setSetting: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@/lib/file-io', () => ({
@@ -34,6 +42,7 @@ function openFromShell(content: string, filename: string, encoding = 'utf-8' as 
 
 afterEach(() => {
   vi.clearAllMocks()
+  resetRecentFilesStore()
 })
 
 describe('text editor model', () => {
@@ -147,6 +156,62 @@ describe('TextEditor', () => {
       await screen.findByRole('button', { name: 'Save with encoding: UTF-8 with BOM' })
     ).toBeInTheDocument()
     expect(screen.getByText('Saved')).toBeInTheDocument()
+  })
+
+  it('keeps a language picked before the manual flag existed', async () => {
+    vi.mocked(saveFileDialog).mockResolvedValue('/tmp/notes.py')
+    useToolStateCache.setState({
+      cache: new Map([
+        [
+          'text-editor',
+          { content: 'x', savedContent: '', fileName: 'notes.txt', language: 'ruby' },
+        ],
+      ]),
+    })
+    render(<TextEditor />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save file' }))
+
+    await waitFor(() => expect(screen.getByText('notes.py')).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Language: Ruby' })).toBeInTheDocument()
+  })
+
+  it('toggles word wrap for this tab', () => {
+    renderTool(TextEditor)
+    const toggle = screen.getByRole('button', { name: 'Wrap: On' })
+    expect(toggle).toHaveAttribute('aria-pressed', 'true')
+
+    fireEvent.click(toggle)
+
+    expect(screen.getByRole('button', { name: 'Wrap: Off' })).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    )
+  })
+
+  it('records opened files and opens one again from the recent list', async () => {
+    renderTool(TextEditor)
+    openFromShell('first', 'first.txt')
+    await waitFor(() => expect(useRecentFilesStore.getState().paths).toEqual(['/tmp/first.txt']))
+    fireEvent.click(screen.getByRole('button', { name: 'New document' }))
+
+    vi.mocked(readEncodedTextFile).mockResolvedValueOnce({ content: 'first', encoding: 'utf-8' })
+    fireEvent.click(screen.getByRole('button', { name: 'Recent files' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Open /tmp/first.txt' }))
+
+    await waitFor(() => expect(screen.getByTestId('monaco-editor')).toHaveValue('first'))
+    expect(screen.getByText('first.txt')).toBeInTheDocument()
+  })
+
+  it('removes a recent file that cannot be read', async () => {
+    vi.mocked(getSetting).mockResolvedValueOnce(['/tmp/gone.txt'])
+    vi.mocked(readEncodedTextFile).mockRejectedValueOnce(new Error('No such file'))
+    renderTool(TextEditor)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Recent files' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Open /tmp/gone.txt' }))
+
+    await waitFor(() => expect(useRecentFilesStore.getState().paths).toEqual([]))
   })
 
   it('drops a slow open that finishes after New', async () => {

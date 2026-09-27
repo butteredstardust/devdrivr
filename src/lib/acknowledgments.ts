@@ -197,6 +197,12 @@ export const CARGO_DEPENDENCIES: readonly Attribution[] = [
     copyright: 'Tauri Programme within The Commons Conservancy',
   },
   {
+    name: 'tauri-plugin-persisted-scope',
+    version: '2.3.8',
+    license: 'Apache-2.0 OR MIT',
+    copyright: 'Tauri Programme within The Commons Conservancy',
+  },
+  {
     name: 'tauri-plugin-http',
     version: '2.5.7',
     license: 'Apache-2.0 OR MIT',
