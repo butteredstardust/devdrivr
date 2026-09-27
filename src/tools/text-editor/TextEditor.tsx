@@ -489,15 +489,29 @@ export default function TextEditor() {
     FORMATTER_WORKER_METHODS,
     formatterWanted
   )
-  const formattingRef = useRef(false)
+  // Increments for each format request and on unmount. Only the newest request applies its result.
+  const formatRequestRef = useRef(0)
 
   const handleFormat = useCallback(async () => {
     const editor = editorRef.current
     const model = editor?.getModel()
-    if (!editor || !model || !formatter || !formatLanguage || formattingRef.current) return
-    formattingRef.current = true
+    if (!editor || !model || !formatter || !formatLanguage) return
+    const request = ++formatRequestRef.current
     const source = model.getValue()
+    const version = model.getVersionId()
+    const language = model.getLanguageId()
     const { insertSpaces, tabSize } = model.getOptions()
+    // A result must never replace a newer document, edits, language or indentation.
+    const isCurrent = () => {
+      if (editorRef.current?.getModel() !== model || model.isDisposed()) return false
+      const options = model.getOptions()
+      return (
+        model.getVersionId() === version &&
+        model.getLanguageId() === language &&
+        options.insertSpaces === insertSpaces &&
+        options.tabSize === tabSize
+      )
+    }
     try {
       // Prettier defaults, because a document here has no project configuration.
       const formatted = await formatter.format(source, {
@@ -508,8 +522,8 @@ export default function TextEditor() {
         semi: true,
         trailingComma: 'all',
       })
-      // A slow result must never replace edits made while the formatter ran.
-      if (editorRef.current?.getModel() !== model || model.getValue() !== source) {
+      if (formatRequestRef.current !== request) return
+      if (!isCurrent()) {
         setLastAction('Format skipped: the document changed', 'info')
         return
       }
@@ -519,9 +533,9 @@ export default function TextEditor() {
       ])
       setLastAction(changed ? 'Formatted' : 'Already formatted', changed ? 'success' : 'info')
     } catch (error) {
+      // A newer request or unmount supersedes this one, and its error means nothing now.
+      if (formatRequestRef.current !== request) return
       setLastAction(`Format failed: ${describe(error)}`, 'error')
-    } finally {
-      formattingRef.current = false
     }
   }, [formatLanguage, formatter, replaceText, setLastAction])
   const handleFormatRef = useRef(handleFormat)
@@ -614,8 +628,9 @@ export default function TextEditor() {
 
   useEffect(
     () => () => {
-      // A file read that finishes after unmount must not change the stored document.
+      // A file read or format that finishes after unmount must not change anything.
       openRequestRef.current++
+      formatRequestRef.current++
       editorSubscriptionsRef.current.forEach((subscription) => subscription.dispose())
       editorSubscriptionsRef.current = []
     },
