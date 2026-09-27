@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { OnMount } from '@monaco-editor/react'
 import {
+  BracketsCurlyIcon,
   CopyIcon,
   FileTextIcon,
   MagnifyingGlassIcon,
@@ -19,6 +20,7 @@ import { useReloadOnFileChange, type ReloadedTextFile } from '@/hooks/useReloadO
 import { useTabDirty } from '@/hooks/useTabDirty'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useToolState } from '@/hooks/useToolState'
+import { useWorker } from '@/hooks/useWorker'
 import {
   filenameFromPath,
   openEncodedTextFileDialog,
@@ -27,8 +29,10 @@ import {
   saveFileDialog,
 } from '@/lib/file-io'
 import { MAX_EDITABLE_TEXT_FILE_BYTES } from '@/lib/file-limits'
+import { formatShortcut } from '@/lib/shortcut-label'
 import { textEncodingLabel, type DecodedText, type TextFileEncoding } from '@/lib/text-encoding'
 import { useRecentFilesStore } from '@/stores/recent-files.store'
+import { LANGUAGES as FORMATTER_LANGUAGES } from '@/tools/code-formatter/languages'
 import { useUiStore } from '@/stores/ui.store'
 import {
   countLines,
@@ -38,8 +42,17 @@ import {
   type SelectionSummary,
 } from '@/tools/text-editor/text-editor-model'
 import { RecentFilesMenu } from '@/tools/text-editor/RecentFilesMenu'
+import { TextTransformMenu } from '@/tools/text-editor/TextTransformMenu'
+import {
+  selectedLineSpans,
+  transformText,
+  type LineTransform,
+} from '@/tools/text-editor/text-transforms'
 import { registerTomlLanguage } from '@/tools/text-editor/toml-language'
 import { TextEditorStatusBar, type Indentation } from '@/tools/text-editor/TextEditorStatusBar'
+import { FORMATTER_WORKER_METHODS } from '@/workers/formatter.methods'
+import type { FormatterWorker } from '@/workers/formatter.worker'
+import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
 
 type TextEditorState = {
   content: string
@@ -63,6 +76,11 @@ type PendingDocument = Omit<TextEditorState, 'savedEncoding' | 'languageManual' 
 }
 
 type MonacoInstance = Parameters<OnMount>[0]
+type TextModel = NonNullable<ReturnType<MonacoInstance['getModel']>>
+type EditRange = Parameters<TextModel['getValueInRange']>[0]
+
+// The languages that the Code Formatter formats. The editor uses the same worker.
+const FORMATTABLE_LANGUAGES = new Set(FORMATTER_LANGUAGES.map((language) => language.id))
 
 function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -71,14 +89,36 @@ function describe(error: unknown): string {
 const readEditableText = (path: string): Promise<DecodedText> =>
   readEncodedTextFile(path, { maxBytes: MAX_EDITABLE_TEXT_FILE_BYTES })
 
+// The detected languages that differ from the build that saved state without `languageManual`.
+const EARLIER_DETECTED_LANGUAGE: Record<string, string> = {
+  toml: 'ini',
+  bash: 'plaintext',
+  cjs: 'plaintext',
+  cts: 'plaintext',
+  mjs: 'plaintext',
+  mts: 'plaintext',
+  pm: 'plaintext',
+  tf: 'plaintext',
+}
+
+function earlierDetectedLanguage(fileName: string | null): string {
+  const extension = fileName?.includes('.') ? fileName.split('.').pop()?.toLowerCase() : undefined
+  return extension && Object.hasOwn(EARLIER_DETECTED_LANGUAGE, extension)
+    ? (EARLIER_DETECTED_LANGUAGE[extension] ?? 'plaintext')
+    : detectTextEditorLanguage(fileName)
+}
+
 /**
- * Marks a restored language as manual when it differs from the detected one. State saved before
- * `languageManual` existed restores it as `false`. A document with `false` always has the detected
- * language, so this rule is exact for current state too.
+ * Marks a restored language as manual when no detection produced it. State saved before
+ * `languageManual` existed restores it as `false`. A language from the earlier detection changes
+ * to the current one, so a `.toml` tab gets the TOML grammar and stays automatic. A document with
+ * `false` always has the detected language, so this rule is exact for current state too.
  */
 function restoreLanguageManual(state: TextEditorState): TextEditorState {
-  if (state.languageManual || state.language === detectTextEditorLanguage(state.fileName)) {
-    return state
+  const detected = detectTextEditorLanguage(state.fileName)
+  if (state.languageManual || state.language === detected) return state
+  if (state.language === earlierDetectedLanguage(state.fileName)) {
+    return { ...state, language: detected }
   }
   return { ...state, languageManual: true }
 }
@@ -368,6 +408,125 @@ export default function TextEditor() {
     void editor?.getAction(id)?.run()
   }, [])
 
+  /**
+   * Replaces text as one undoable edit. Each edit gives its range and new text.
+   * Returns false when no text changes.
+   */
+  const replaceText = useCallback(
+    (source: string, edits: { range: EditRange; before: string; text: string }[]): boolean => {
+      const editor = editorRef.current
+      const changed = edits.filter((edit) => edit.text !== edit.before)
+      if (!editor || changed.length === 0) return false
+      editor.pushUndoStop()
+      editor.executeEdits(
+        source,
+        changed.map(({ range, text }) => ({ range, text, forceMoveMarkers: true }))
+      )
+      editor.pushUndoStop()
+      editor.focus()
+      return true
+    },
+    []
+  )
+
+  const reportTransform = useCallback(
+    (label: string, changed: boolean) => {
+      setLastAction(changed ? label : `${label}: nothing to change`, changed ? 'success' : 'info')
+    },
+    [setLastAction]
+  )
+
+  // Change the whole lines of each selection, or the whole document when nothing is selected.
+  const runLineTransform = useCallback(
+    (transform: LineTransform) => {
+      const editor = editorRef.current
+      const model = editor?.getModel()
+      if (!editor || !model) return
+      const eol = model.getEOL()
+      const edits = selectedLineSpans(editor.getSelections() ?? [], model.getLineCount()).map(
+        ({ start, end }) => {
+          const range = {
+            startLineNumber: start,
+            startColumn: 1,
+            endLineNumber: end,
+            endColumn: model.getLineMaxColumn(end),
+          }
+          const before = model.getValueInRange(range)
+          return { range, before, text: transformText(before, eol, transform) }
+        }
+      )
+      reportTransform(transform.label, replaceText('devdrivr.lineTransform', edits))
+    },
+    [replaceText, reportTransform]
+  )
+
+  // Change the selected text exactly, or the whole document when nothing is selected.
+  const runCaseTransform = useCallback(
+    (transform: LineTransform) => {
+      const editor = editorRef.current
+      const model = editor?.getModel()
+      if (!editor || !model) return
+      const eol = model.getEOL()
+      const selected = (editor.getSelections() ?? []).filter((selection) => !selection.isEmpty())
+      const ranges: EditRange[] = selected.length > 0 ? selected : [model.getFullModelRange()]
+      const edits = ranges.map((range) => {
+        const before = model.getValueInRange(range)
+        return { range, before, text: transformText(before, eol, transform) }
+      })
+      reportTransform(transform.label, replaceText('devdrivr.caseTransform', edits))
+    },
+    [replaceText, reportTransform]
+  )
+
+  const formatLanguage = FORMATTABLE_LANGUAGES.has(state.language) ? state.language : null
+  // The formatter worker holds Prettier. Start it only after a formattable document appears.
+  const [formatterWanted, setFormatterWanted] = useState(false)
+  useEffect(() => {
+    if (formatLanguage) setFormatterWanted(true)
+  }, [formatLanguage])
+  const formatter = useWorker<FormatterWorker>(
+    () => new FormatterWorkerFactory(),
+    FORMATTER_WORKER_METHODS,
+    formatterWanted
+  )
+  const formattingRef = useRef(false)
+
+  const handleFormat = useCallback(async () => {
+    const editor = editorRef.current
+    const model = editor?.getModel()
+    if (!editor || !model || !formatter || !formatLanguage || formattingRef.current) return
+    formattingRef.current = true
+    const source = model.getValue()
+    const { insertSpaces, tabSize } = model.getOptions()
+    try {
+      // Prettier defaults, because a document here has no project configuration.
+      const formatted = await formatter.format(source, {
+        language: formatLanguage,
+        tabWidth: tabSize,
+        useTabs: !insertSpaces,
+        singleQuote: false,
+        semi: true,
+        trailingComma: 'all',
+      })
+      // A slow result must never replace edits made while the formatter ran.
+      if (editorRef.current?.getModel() !== model || model.getValue() !== source) {
+        setLastAction('Format skipped: the document changed', 'info')
+        return
+      }
+      const text = formatted.replace(/\r?\n/g, model.getEOL())
+      const changed = replaceText('devdrivr.format', [
+        { range: model.getFullModelRange(), before: source, text },
+      ])
+      setLastAction(changed ? 'Formatted' : 'Already formatted', changed ? 'success' : 'info')
+    } catch (error) {
+      setLastAction(`Format failed: ${describe(error)}`, 'error')
+    } finally {
+      formattingRef.current = false
+    }
+  }, [formatLanguage, formatter, replaceText, setLastAction])
+  const handleFormatRef = useRef(handleFormat)
+  handleFormatRef.current = handleFormat
+
   useToolAction((action) => {
     if (action.type === 'open-file') void openShellFile(action)
     if (action.type === 'save-file') void handleSave()
@@ -507,6 +666,12 @@ export default function TextEditor() {
         keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.KeyZ],
         run: () => toggleWordWrapRef.current(),
       }),
+      editor.addAction({
+        id: 'devdrivr.formatDocument',
+        label: 'Format Document',
+        keybindings: [monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF],
+        run: () => handleFormatRef.current(),
+      }),
       editor.onDidChangeCursorPosition(updateCursor),
       editor.onDidChangeCursorSelection(updateSelection),
       editor.onDidChangeModel(watchModel),
@@ -535,6 +700,26 @@ export default function TextEditor() {
             saveAs={{ onClick: () => void handleSaveAs(), label: 'Save file as' }}
           />
           <RecentFilesMenu onOpen={(path) => void openRecentFile(path)} />
+          <ToolbarGroup label="Edit" separated>
+            <Button
+              variant="icon"
+              size="sm"
+              onClick={() => void handleFormat()}
+              disabled={!formatLanguage || !formatter}
+              aria-label="Format document"
+              title={
+                formatLanguage
+                  ? `Format document (${formatShortcut('shift+alt+f')})`
+                  : 'Format document: not available for this language'
+              }
+            >
+              <BracketsCurlyIcon size={14} aria-hidden="true" />
+            </Button>
+            <TextTransformMenu
+              onLineTransform={runLineTransform}
+              onCaseTransform={runCaseTransform}
+            />
+          </ToolbarGroup>
           <ToolbarGroup label="Search and copy" separated>
             <Button
               variant="icon"

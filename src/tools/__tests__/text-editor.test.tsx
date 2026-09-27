@@ -176,6 +176,26 @@ describe('TextEditor', () => {
     expect(screen.getByRole('button', { name: 'Language: Ruby' })).toBeInTheDocument()
   })
 
+  it('moves a language from the earlier detection to the current one', async () => {
+    vi.mocked(saveFileDialog).mockResolvedValue('/tmp/renamed.py')
+    useToolStateCache.setState({
+      cache: new Map([
+        [
+          'text-editor',
+          { content: 'x', savedContent: '', fileName: 'Cargo.toml', language: 'ini' },
+        ],
+      ]),
+    })
+    render(<TextEditor />)
+
+    expect(screen.getByRole('button', { name: 'Language: TOML' })).toBeInTheDocument()
+
+    // The language is still automatic, so Save As detects it again.
+    fireEvent.click(screen.getByRole('button', { name: 'Save file' }))
+    await waitFor(() => expect(screen.getByText('renamed.py')).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Language: Python' })).toBeInTheDocument()
+  })
+
   it('toggles word wrap for this tab', () => {
     renderTool(TextEditor)
     const toggle = screen.getByRole('button', { name: 'Wrap: On' })
@@ -212,6 +232,27 @@ describe('TextEditor', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Open /tmp/gone.txt' }))
 
     await waitFor(() => expect(useRecentFilesStore.getState().paths).toEqual([]))
+  })
+
+  it('offers Format document only for a language the formatter supports', async () => {
+    renderTool(TextEditor)
+    expect(screen.getByRole('button', { name: 'Format document' })).toBeDisabled()
+
+    openFromShell('{"a":1}', 'data.json')
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Format document' })).toBeEnabled()
+    )
+  })
+
+  it('lists the line and case transforms', () => {
+    renderTool(TextEditor)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Transform text' }))
+
+    expect(screen.getByRole('button', { name: 'Sort lines A to Z' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Remove duplicate lines' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'snake_case' })).toBeInTheDocument()
   })
 
   it('drops a slow open that finishes after New', async () => {
