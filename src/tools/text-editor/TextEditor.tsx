@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { OnMount } from '@monaco-editor/react'
 import {
   CopyIcon,
@@ -20,8 +20,15 @@ import { useReloadOnFileChange, type ReloadedTextFile } from '@/hooks/useReloadO
 import { useTabDirty } from '@/hooks/useTabDirty'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useToolState } from '@/hooks/useToolState'
-import { filenameFromPath, openFileDialog, saveFileDialog, saveFileToPath } from '@/lib/file-io'
+import {
+  filenameFromPath,
+  openEncodedTextFileDialog,
+  readEncodedTextFile,
+  saveEncodedTextFile,
+  saveFileDialog,
+} from '@/lib/file-io'
 import { MAX_EDITABLE_TEXT_FILE_BYTES } from '@/lib/file-limits'
+import { textEncodingLabel, type DecodedText, type TextFileEncoding } from '@/lib/text-encoding'
 import { useUiStore } from '@/stores/ui.store'
 import {
   countLines,
@@ -36,6 +43,8 @@ type TextEditorState = {
   fileName: string | null
   filePath: string | null
   language: string
+  /** The encoding the file had on disk. Save writes the same encoding back. */
+  encoding: TextFileEncoding
 }
 
 type PendingDocument = TextEditorState & {
@@ -43,9 +52,16 @@ type PendingDocument = TextEditorState & {
   successMessage: string
 }
 
+type Indentation = { insertSpaces: boolean; tabSize: number }
+
+type MonacoInstance = Parameters<OnMount>[0]
+
 function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
+
+const readEditableText = (path: string): Promise<DecodedText> =>
+  readEncodedTextFile(path, { maxBytes: MAX_EDITABLE_TEXT_FILE_BYTES })
 
 export default function TextEditor() {
   const { theme: monacoTheme, options: monacoOptions } = useMonaco()
@@ -56,14 +72,24 @@ export default function TextEditor() {
     fileName: null,
     filePath: null,
     language: 'plaintext',
+    encoding: 'utf-8',
   })
   const setLastAction = useUiStore((s) => s.setLastAction)
   const copy = useCopyToClipboard()
-  const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
+  const editorRef = useRef<MonacoInstance | null>(null)
+  const editorSubscriptionsRef = useRef<{ dispose(): void }[]>([])
+  // Discards a slow file read when the user starts another open before it finishes.
+  const openRequestRef = useRef(0)
+  const monacoOptionsRef = useRef(monacoOptions)
+  monacoOptionsRef.current = monacoOptions
   const contentRef = useRef(state.content)
   const savedContentRef = useRef(state.savedContent)
   const [cursor, setCursor] = useState({ line: 1, column: 1 })
   const [pendingDocument, setPendingDocument] = useState<PendingDocument | null>(null)
+  // The model owns the indentation. Monaco detects it from the file, so Settings can differ.
+  const [indentation, setIndentation] = useState<Indentation | null>(null)
+  // Counts applied documents. Each change runs indentation detection on the new text.
+  const [documentGeneration, setDocumentGeneration] = useState(0)
   contentRef.current = state.content
   savedContentRef.current = state.savedContent
 
@@ -80,8 +106,10 @@ export default function TextEditor() {
         fileName: document.fileName,
         filePath: document.filePath,
         language: document.language,
+        encoding: document.encoding,
       })
       setPendingDocument(null)
+      setDocumentGeneration((generation) => generation + 1)
       setCursor({ line: 1, column: 1 })
       setLastAction(document.successMessage, 'success')
     },
@@ -100,18 +128,41 @@ export default function TextEditor() {
   )
 
   const openDocument = useCallback(
-    (file: { content: string; filename: string; path?: string }) => {
+    (file: { content: string; filename: string; path?: string; encoding: TextFileEncoding }) => {
+      const encodingNote =
+        file.encoding === 'utf-8' ? '' : ` as ${textEncodingLabel(file.encoding)}`
       requestDocument({
         content: file.content,
         savedContent: file.content,
         fileName: file.filename,
         filePath: file.path ?? null,
         language: detectTextEditorLanguage(file.filename),
+        encoding: file.encoding,
         source: 'document',
-        successMessage: `Opened ${file.filename}`,
+        successMessage: `Opened ${file.filename}${encodingNote}`,
       })
     },
     [requestDocument]
+  )
+
+  // The shell reads files as lossy UTF-8. Read the file again to keep its exact bytes.
+  const openShellFile = useCallback(
+    async (file: { content: string; filename: string; path?: string }) => {
+      const request = ++openRequestRef.current
+      if (!file.path) {
+        openDocument({ ...file, encoding: 'utf-8' })
+        return
+      }
+      try {
+        const decoded = await readEditableText(file.path)
+        if (request === openRequestRef.current) openDocument({ ...file, ...decoded })
+      } catch (error) {
+        if (request === openRequestRef.current) {
+          setLastAction(`Open failed: ${describe(error)}`, 'error')
+        }
+      }
+    },
+    [openDocument, setLastAction]
   )
 
   const handleNew = useCallback(() => {
@@ -121,15 +172,17 @@ export default function TextEditor() {
       fileName: null,
       filePath: null,
       language: 'plaintext',
+      encoding: 'utf-8',
       source: 'document',
       successMessage: 'New text document created',
     })
   }, [requestDocument])
 
   const handleOpen = useCallback(async () => {
+    const request = ++openRequestRef.current
     try {
-      const file = await openFileDialog({ maxBytes: MAX_EDITABLE_TEXT_FILE_BYTES })
-      if (file) openDocument(file)
+      const file = await openEncodedTextFileDialog({ maxBytes: MAX_EDITABLE_TEXT_FILE_BYTES })
+      if (file && request === openRequestRef.current) openDocument(file)
     } catch (error) {
       setLastAction(`Open failed: ${describe(error)}`, 'error')
     }
@@ -146,7 +199,7 @@ export default function TextEditor() {
   const handleSaveAs = useCallback(async () => {
     const content = contentRef.current
     try {
-      const path = await saveFileDialog(content, state.fileName ?? 'untitled.txt')
+      const path = await saveFileDialog(content, state.fileName ?? 'untitled.txt', state.encoding)
       if (!path) {
         setLastAction('Save cancelled', 'info')
         return
@@ -157,7 +210,7 @@ export default function TextEditor() {
     } catch (error) {
       setLastAction(`Save failed: ${describe(error)}`, 'error')
     }
-  }, [markSaved, setLastAction, state.fileName])
+  }, [markSaved, setLastAction, state.encoding, state.fileName])
 
   const handleSave = useCallback(async () => {
     if (!state.filePath) {
@@ -166,18 +219,19 @@ export default function TextEditor() {
     }
     const content = contentRef.current
     try {
-      await saveFileToPath(state.filePath, content)
+      await saveEncodedTextFile(state.filePath, content, state.encoding)
       markSaved(state.filePath, state.fileName ?? filenameFromPath(state.filePath), content)
       setLastAction(`Saved ${state.fileName ?? filenameFromPath(state.filePath)}`, 'success')
     } catch (error) {
       setLastAction(`Save failed: ${describe(error)}`, 'error')
     }
-  }, [handleSaveAs, markSaved, setLastAction, state.fileName, state.filePath])
+  }, [handleSaveAs, markSaved, setLastAction, state.encoding, state.fileName, state.filePath])
 
   useReloadOnFileChange({
     filePath: state.filePath,
     maxBytes: MAX_EDITABLE_TEXT_FILE_BYTES,
     getContent: () => contentRef.current,
+    readText: readEditableText,
     onReload: (file: ReloadedTextFile) => {
       const document: PendingDocument = {
         content: file.content,
@@ -185,6 +239,7 @@ export default function TextEditor() {
         fileName: file.filename,
         filePath: file.path,
         language: detectTextEditorLanguage(file.filename),
+        encoding: file.encoding ?? 'utf-8',
         source: 'disk',
         successMessage: `Reloaded ${file.filename} from disk`,
       }
@@ -203,7 +258,7 @@ export default function TextEditor() {
   }, [])
 
   useToolAction((action) => {
-    if (action.type === 'open-file') openDocument(action)
+    if (action.type === 'open-file') void openShellFile(action)
     if (action.type === 'save-file') void handleSave()
     if (action.type === 'copy-output') {
       void copy(contentRef.current, {
@@ -221,9 +276,57 @@ export default function TextEditor() {
     [monacoOptions]
   )
   const lineCount = useMemo(() => countLines(state.content), [state.content])
-  const indentation = monacoOptions.insertSpaces
-    ? `Spaces: ${monacoOptions.tabSize ?? 2}`
-    : `Tabs: ${monacoOptions.tabSize ?? 2}`
+  const shownIndentation = indentation ?? {
+    insertSpaces: monacoOptions.insertSpaces,
+    tabSize: monacoOptions.tabSize,
+  }
+  const indentationLabel = `${shownIndentation.insertSpaces ? 'Spaces' : 'Tab Size'}: ${shownIndentation.tabSize}`
+
+  // `model.setValue` keeps the previous document's indentation. Detect it again for the new text.
+  // The editor's own effect has already pushed the new value, because child effects run first.
+  useEffect(() => {
+    if (documentGeneration === 0) return
+    const model = editorRef.current?.getModel()
+    if (!model || model.getValue() !== contentRef.current) return
+    const options = monacoOptionsRef.current
+    model.detectIndentation(options.insertSpaces, options.tabSize)
+  }, [documentGeneration])
+
+  useEffect(
+    () => () => {
+      editorSubscriptionsRef.current.forEach((subscription) => subscription.dispose())
+      editorSubscriptionsRef.current = []
+    },
+    []
+  )
+
+  const handleMount = useCallback((editor: MonacoInstance) => {
+    editorRef.current = editor
+    editorSubscriptionsRef.current.forEach((subscription) => subscription.dispose())
+    const updateCursor = () => {
+      const position = editor.getPosition()
+      if (position) setCursor({ line: position.lineNumber, column: position.column })
+    }
+    let modelOptions: { dispose(): void } | undefined
+    const watchModel = () => {
+      modelOptions?.dispose()
+      const model = editor.getModel()
+      if (!model) return
+      const syncIndentation = () => {
+        const { insertSpaces, tabSize } = model.getOptions()
+        setIndentation({ insertSpaces, tabSize })
+      }
+      syncIndentation()
+      modelOptions = model.onDidChangeOptions(syncIndentation)
+    }
+    updateCursor()
+    watchModel()
+    editorSubscriptionsRef.current = [
+      editor.onDidChangeCursorPosition(updateCursor),
+      editor.onDidChangeModel(watchModel),
+      { dispose: () => modelOptions?.dispose() },
+    ]
+  }, [])
 
   return (
     <ToolLayout
@@ -298,15 +401,7 @@ export default function TextEditor() {
             contentRef.current = content
             updateState({ content })
           }}
-          onMount={(editor) => {
-            editorRef.current = editor
-            const updateCursor = () => {
-              const position = editor.getPosition()
-              if (position) setCursor({ line: position.lineNumber, column: position.column })
-            }
-            updateCursor()
-            editor.onDidChangeCursorPosition(updateCursor)
-          }}
+          onMount={handleMount}
           options={editorOptions}
         />
       </div>
@@ -314,9 +409,9 @@ export default function TextEditor() {
         <span>
           Ln {cursor.line}, Col {cursor.column}
         </span>
-        <span>{indentation}</span>
+        <span>{indentationLabel}</span>
         <span>{lineEndingLabel(state.content)}</span>
-        <span>UTF-8</span>
+        <span>{textEncodingLabel(state.encoding)}</span>
         <span className="ml-auto">
           {TEXT_EDITOR_LANGUAGES.find((language) => language.id === state.language)?.label ??
             state.language}

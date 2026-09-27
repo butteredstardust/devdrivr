@@ -9,11 +9,14 @@ import {
   isLikelyBinaryText,
   openFileDialog,
   openImageFileDialog,
+  readEncodedTextFile,
   readSupportedTextFile,
   sanitizeExportBasename,
+  saveEncodedTextFile,
   saveFileDialog,
   saveFileToPath,
 } from '@/lib/file-io'
+import { UnencodableTextError } from '@/lib/text-encoding'
 import { subscribeTextFileWrite } from '@/lib/text-file-write-events'
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({
@@ -36,6 +39,45 @@ describe('file I/O', () => {
     vi.mocked(stat).mockResolvedValue({ size: 5 } as Awaited<ReturnType<typeof stat>>)
     vi.mocked(writeTextFile).mockResolvedValue()
     vi.mocked(writeFile).mockResolvedValue()
+  })
+
+  it('reads an editable file with its BOM recorded, not removed', async () => {
+    vi.mocked(readFile).mockResolvedValue(new Uint8Array([0xef, 0xbb, 0xbf, 0x68, 0x69]))
+
+    await expect(readEncodedTextFile('/tmp/bom.txt')).resolves.toEqual({
+      content: 'hi',
+      encoding: 'utf-8-bom',
+    })
+  })
+
+  it('rejects an oversized editable file before reading it', async () => {
+    vi.mocked(stat).mockResolvedValue({ size: 10 } as Awaited<ReturnType<typeof stat>>)
+
+    await expect(readEncodedTextFile('/tmp/big.txt', { maxBytes: 5 })).rejects.toBeInstanceOf(
+      FileTooLargeError
+    )
+    expect(readFile).not.toHaveBeenCalled()
+  })
+
+  it('writes the encoded bytes and reports the write', async () => {
+    const writes: string[] = []
+    const unsubscribe = subscribeTextFileWrite((path, content) => writes.push(`${path}:${content}`))
+
+    await saveEncodedTextFile('/tmp/bom.txt', 'hi', 'utf-8-bom')
+
+    expect(writeFile).toHaveBeenCalledWith(
+      '/tmp/bom.txt',
+      new Uint8Array([0xef, 0xbb, 0xbf, 0x68, 0x69])
+    )
+    expect(writes).toEqual(['/tmp/bom.txt:hi'])
+    unsubscribe()
+  })
+
+  it('fails an unencodable Save As before the dialog opens', async () => {
+    await expect(saveFileDialog('✓', 'a.txt', 'windows-1252')).rejects.toBeInstanceOf(
+      UnencodableTextError
+    )
+    expect(save).not.toHaveBeenCalled()
   })
 
   it('returns null without reading when open is cancelled', async () => {

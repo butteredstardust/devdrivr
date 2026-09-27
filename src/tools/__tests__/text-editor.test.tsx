@@ -8,7 +8,7 @@ import {
   TEXT_EDITOR_LANGUAGES,
 } from '@/tools/text-editor/text-editor-model'
 import { dispatchToolAction } from '@/lib/tool-actions'
-import { saveFileDialog, saveFileToPath } from '@/lib/file-io'
+import { readEncodedTextFile, saveEncodedTextFile, saveFileDialog } from '@/lib/file-io'
 import { renderTool } from '@/tools/__tests__/test-utils'
 
 vi.mock('@tauri-apps/plugin-fs', () => ({
@@ -17,10 +17,19 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 
 vi.mock('@/lib/file-io', () => ({
   filenameFromPath: (path: string) => path.split(/[\\/]/).pop() || path,
-  openFileDialog: vi.fn(),
+  openEncodedTextFileDialog: vi.fn(),
+  readEncodedTextFile: vi.fn(),
   saveFileDialog: vi.fn(),
-  saveFileToPath: vi.fn(),
+  saveEncodedTextFile: vi.fn(),
 }))
+
+// The shell dispatches lossy UTF-8. The editor reads the file again and uses that result.
+function openFromShell(content: string, filename: string, encoding = 'utf-8' as const) {
+  vi.mocked(readEncodedTextFile).mockResolvedValueOnce({ content, encoding })
+  act(() => {
+    dispatchToolAction({ type: 'open-file', content, filename, path: `/tmp/${filename}` })
+  })
+}
 
 afterEach(() => {
   vi.clearAllMocks()
@@ -59,19 +68,15 @@ describe('TextEditor', () => {
     expect(screen.getByRole('combobox', { name: 'Language' })).toHaveValue('plaintext')
   })
 
-  it('opens a file and detects its language', () => {
+  it('opens a file and detects its language', async () => {
     renderTool(TextEditor)
 
-    act(() => {
-      dispatchToolAction({
-        type: 'open-file',
-        content: 'const answer: number = 42\n',
-        filename: 'answer.ts',
-        path: '/tmp/answer.ts',
-      })
-    })
+    openFromShell('const answer: number = 42\n', 'answer.ts')
 
-    expect(screen.getByTestId('monaco-editor')).toHaveValue('const answer: number = 42\n')
+    await waitFor(() =>
+      expect(screen.getByTestId('monaco-editor')).toHaveValue('const answer: number = 42\n')
+    )
+    expect(readEncodedTextFile).toHaveBeenCalledWith('/tmp/answer.ts', expect.anything())
     expect(screen.getByRole('combobox', { name: 'Language' })).toHaveValue('typescript')
     expect(screen.getByText('answer.ts')).toBeInTheDocument()
   })
@@ -87,20 +92,15 @@ describe('TextEditor', () => {
     expect(screen.getAllByText('Python')).toHaveLength(2)
   })
 
-  it('protects unsaved text before opening another document', () => {
+  it('protects unsaved text before opening another document', async () => {
     renderTool(TextEditor)
     fireEvent.change(screen.getByTestId('monaco-editor'), { target: { value: 'draft' } })
 
-    act(() => {
-      dispatchToolAction({
-        type: 'open-file',
-        content: 'replacement',
-        filename: 'other.txt',
-        path: '/tmp/other.txt',
-      })
-    })
+    openFromShell('replacement', 'other.txt')
 
-    expect(screen.getByRole('dialog', { name: 'Replace unsaved changes?' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('dialog', { name: 'Replace unsaved changes?' })
+    ).toBeInTheDocument()
     expect(screen.getByTestId('monaco-editor')).toHaveValue('draft')
 
     fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }))
@@ -109,19 +109,15 @@ describe('TextEditor', () => {
 
   it('can save an empty document back to an existing file', async () => {
     renderTool(TextEditor)
-    act(() => {
-      dispatchToolAction({
-        type: 'open-file',
-        content: 'remove me',
-        filename: 'empty.txt',
-        path: '/tmp/empty.txt',
-      })
-    })
+    openFromShell('remove me', 'empty.txt')
+    await waitFor(() => expect(screen.getByTestId('monaco-editor')).toHaveValue('remove me'))
     fireEvent.change(screen.getByTestId('monaco-editor'), { target: { value: '' } })
 
     act(() => dispatchToolAction({ type: 'save-file' }))
 
-    await waitFor(() => expect(saveFileToPath).toHaveBeenCalledWith('/tmp/empty.txt', ''))
+    await waitFor(() =>
+      expect(saveEncodedTextFile).toHaveBeenCalledWith('/tmp/empty.txt', '', 'utf-8')
+    )
     expect(saveFileDialog).not.toHaveBeenCalled()
     expect(screen.getByText('Saved')).toBeInTheDocument()
   })
@@ -133,7 +129,49 @@ describe('TextEditor', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Save file' }))
 
-    await waitFor(() => expect(saveFileDialog).toHaveBeenCalledWith('notes', 'untitled.txt'))
+    await waitFor(() =>
+      expect(saveFileDialog).toHaveBeenCalledWith('notes', 'untitled.txt', 'utf-8')
+    )
     expect(screen.getByText('notes.txt')).toBeInTheDocument()
+  })
+
+  it('saves a legacy file back in the encoding it was opened with', async () => {
+    renderTool(TextEditor)
+    vi.mocked(readEncodedTextFile).mockResolvedValueOnce({
+      content: 'café',
+      encoding: 'windows-1252',
+    })
+    act(() => {
+      dispatchToolAction({
+        type: 'open-file',
+        content: 'caf\ufffd',
+        filename: 'old.txt',
+        path: '/tmp/old.txt',
+      })
+    })
+
+    await waitFor(() => expect(screen.getByTestId('monaco-editor')).toHaveValue('café'))
+    expect(screen.getByText('Windows-1252')).toBeInTheDocument()
+
+    act(() => dispatchToolAction({ type: 'save-file' }))
+    await waitFor(() =>
+      expect(saveEncodedTextFile).toHaveBeenCalledWith('/tmp/old.txt', 'café', 'windows-1252')
+    )
+  })
+
+  it('does not open lossy shell content when the exact read fails', async () => {
+    renderTool(TextEditor)
+    vi.mocked(readEncodedTextFile).mockRejectedValueOnce(new Error('gone'))
+    act(() => {
+      dispatchToolAction({
+        type: 'open-file',
+        content: 'lossy',
+        filename: 'x.txt',
+        path: '/tmp/x.txt',
+      })
+    })
+
+    await waitFor(() => expect(readEncodedTextFile).toHaveBeenCalled())
+    expect(screen.getByTestId('monaco-editor')).toHaveValue('')
   })
 })

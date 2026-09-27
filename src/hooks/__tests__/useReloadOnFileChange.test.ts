@@ -70,6 +70,35 @@ describe('useReloadOnFileChange', () => {
     expect(unwatch).toHaveBeenCalledOnce()
   })
 
+  it('reads through a custom reader and passes its encoding on', async () => {
+    let callback: WatchCallback | undefined
+    watchMock.mockImplementation(async (_path: string, next: WatchCallback) => {
+      callback = next
+      return vi.fn()
+    })
+    const readText = vi.fn().mockResolvedValue({ content: 'café', encoding: 'windows-1252' })
+    const onReload = vi.fn()
+
+    renderHook(() =>
+      useReloadOnFileChange({
+        filePath: '/tmp/old.txt',
+        getContent: () => 'before',
+        readText,
+        onReload,
+      })
+    )
+    await waitFor(() => expect(watchMock).toHaveBeenCalled())
+    await act(async () => callback?.(changedEvent()))
+
+    expect(readSupportedTextFile).not.toHaveBeenCalled()
+    expect(onReload).toHaveBeenCalledWith({
+      content: 'café',
+      filename: 'old.txt',
+      path: '/tmp/old.txt',
+      encoding: 'windows-1252',
+    })
+  })
+
   it('moves the watcher when the open document path changes', async () => {
     const unwatchFirst = vi.fn()
     const unwatchSecond = vi.fn()

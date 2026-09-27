@@ -2,6 +2,12 @@ import { open, save } from '@tauri-apps/plugin-dialog'
 import { readFile, readTextFile, stat, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { MAX_TEXT_FILE_BYTES } from '@/lib/file-limits'
 import { notifyTextFileWrite } from '@/lib/text-file-write-events'
+import {
+  decodeTextBytes,
+  encodeText,
+  type DecodedText,
+  type TextFileEncoding,
+} from '@/lib/text-encoding'
 
 // One picker contract for editable text. Separate open/save lists drifted: files visible in Open
 // could be renamed with `.txt` by Save As because their extension was missing from that dialog.
@@ -120,17 +126,20 @@ export function mimeTypeFromPath(filePath: string): string {
 /** Thrown when a file is above the caller's size limit. Checked before the file is read. */
 export class FileTooLargeError extends Error {}
 
-export async function readSupportedTextFile(
-  filePath: string,
-  options?: { maxBytes?: number }
-): Promise<string> {
-  const maxBytes = options?.maxBytes ?? MAX_TEXT_FILE_BYTES
+async function assertTextFileSize(filePath: string, maxBytes: number): Promise<void> {
   const metadata = await stat(filePath)
   if (metadata.size > maxBytes) {
     throw new FileTooLargeError(
       `File is larger than the ${Math.round(maxBytes / 1024 / 1024)} MB import limit`
     )
   }
+}
+
+export async function readSupportedTextFile(
+  filePath: string,
+  options?: { maxBytes?: number }
+): Promise<string> {
+  await assertTextFileSize(filePath, options?.maxBytes ?? MAX_TEXT_FILE_BYTES)
   let content: string
   try {
     content = await readTextFile(filePath)
@@ -143,11 +152,30 @@ export async function readSupportedTextFile(
   return content
 }
 
-export async function openFileDialog(options?: { maxBytes?: number }): Promise<{
-  content: string
-  filename: string
-  path: string
-} | null> {
+/**
+ * Reads a text file for an editor that saves it back.
+ *
+ * Unlike `readSupportedTextFile`, this keeps the byte order mark and every byte that is not valid
+ * UTF-8. Pass the returned encoding to `saveEncodedTextFile` to write the same bytes back.
+ */
+export async function readEncodedTextFile(
+  filePath: string,
+  options?: { maxBytes?: number }
+): Promise<DecodedText> {
+  await assertTextFileSize(filePath, options?.maxBytes ?? MAX_TEXT_FILE_BYTES)
+  let decoded: DecodedText
+  try {
+    decoded = decodeTextBytes(await readFile(filePath))
+  } catch (err) {
+    throw new Error(`Unable to read "${filePath}" as text`, { cause: err })
+  }
+  if (isLikelyBinaryText(decoded.content)) {
+    throw new Error(`Unsupported binary file: "${filePath}"`)
+  }
+  return decoded
+}
+
+async function pickTextFilePath(): Promise<string | null> {
   const path = await open({
     multiple: false,
     filters: [
@@ -159,10 +187,28 @@ export async function openFileDialog(options?: { maxBytes?: number }): Promise<{
     ],
   })
   if (!path) return null
-  const filePath = typeof path === 'string' ? path : path[0]
+  return (typeof path === 'string' ? path : path[0]) ?? null
+}
+
+export async function openFileDialog(options?: { maxBytes?: number }): Promise<{
+  content: string
+  filename: string
+  path: string
+} | null> {
+  const filePath = await pickTextFilePath()
   if (!filePath) return null
   const content = await readSupportedTextFile(filePath, options)
   return { content, filename: filenameFromPath(filePath), path: filePath }
+}
+
+/** The open dialog for `readEncodedTextFile`. */
+export async function openEncodedTextFileDialog(options?: {
+  maxBytes?: number
+}): Promise<(DecodedText & { filename: string; path: string }) | null> {
+  const filePath = await pickTextFilePath()
+  if (!filePath) return null
+  const decoded = await readEncodedTextFile(filePath, options)
+  return { ...decoded, filename: filenameFromPath(filePath), path: filePath }
 }
 
 /** Throws `FileTooLargeError` for a file above `maxBytes`, before the file is read. */
@@ -199,10 +245,32 @@ export async function saveFileToPath(path: string, content: string): Promise<voi
   notifyTextFileWrite(path, content)
 }
 
+/**
+ * Writes content to a known path in the given encoding. No dialog is shown.
+ *
+ * Throws `UnencodableTextError` before the write when the encoding cannot store the content.
+ */
+export async function saveEncodedTextFile(
+  path: string,
+  content: string,
+  encoding: TextFileEncoding
+): Promise<void> {
+  await writeFile(path, encodeText(content, encoding))
+  notifyTextFileWrite(path, content)
+}
+
+/**
+ * Shows the save dialog. Without an encoding, writes UTF-8 with no BOM.
+ *
+ * With an encoding, the content is encoded before the dialog opens. An unencodable character
+ * then fails the save before the user picks a path.
+ */
 export async function saveFileDialog(
   content: string,
-  defaultName?: string
+  defaultName?: string,
+  encoding?: TextFileEncoding
 ): Promise<string | null> {
+  const bytes = encoding === undefined ? null : encodeText(content, encoding)
   const path = await save({
     ...(defaultName !== undefined && { defaultPath: defaultName }),
     filters: [
@@ -216,7 +284,8 @@ export async function saveFileDialog(
     ],
   })
   if (!path) return null
-  await writeTextFile(path, content)
+  if (bytes) await writeFile(path, bytes)
+  else await writeTextFile(path, content)
   notifyTextFileWrite(path, content)
   return path
 }
