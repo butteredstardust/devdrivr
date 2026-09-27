@@ -59,4 +59,18 @@ describe('useRecentFilesStore', () => {
     await useRecentFilesStore.getState().clear()
     expect(setSetting).toHaveBeenLastCalledWith(RECENT_FILES_SETTING, [])
   })
+
+  it('keeps the stored list when the first load fails', async () => {
+    vi.mocked(getSetting)
+      .mockRejectedValueOnce(new Error('database is locked'))
+      .mockResolvedValue(['/old.txt'])
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    await useRecentFilesStore.getState().record('/lost.txt')
+    expect(setSetting).not.toHaveBeenCalled()
+
+    // The next change loads the list again.
+    await useRecentFilesStore.getState().record('/new.txt')
+    expect(setSetting).toHaveBeenCalledWith(RECENT_FILES_SETTING, ['/new.txt', '/old.txt'])
+  })
 })

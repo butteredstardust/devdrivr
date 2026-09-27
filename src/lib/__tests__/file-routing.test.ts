@@ -85,13 +85,16 @@ describe('bundle file associations', () => {
   })
 
   // A route with no association never appears in the system's "Open With" menu.
-  it('claims every extension it routes', () => {
+  // Executable scripts stay unclaimed: on Windows the claim replaces the handler that runs them.
+  it('claims every extension it routes, except executable scripts', () => {
     const config = JSON.parse(
       readFileSync(resolve(__dirname, '../../../src-tauri/tauri.conf.json'), 'utf8')
     ) as { bundle: { fileAssociations: Array<{ ext: string[] }> } }
 
     const declared = new Set(config.bundle.fileAssociations.flatMap((entry) => entry.ext))
-    for (const ext of Object.keys(EXTENSION_TOOL_IDS)) {
+    const unclaimed = new Set(['ps1', 'bat'])
+    for (const ext of unclaimed) expect(declared.has(ext), `${ext} is declared`).toBe(false)
+    for (const ext of Object.keys(EXTENSION_TOOL_IDS).filter((ext) => !unclaimed.has(ext))) {
       expect(declared.has(ext), `${ext} is not declared`).toBe(true)
     }
   })

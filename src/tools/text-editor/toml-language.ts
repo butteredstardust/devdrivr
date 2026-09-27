@@ -3,6 +3,12 @@ import type { languages } from 'monaco-editor'
 
 let registered = false
 
+// A bare, basic-quoted or literal-quoted key segment.
+const KEY_PART = String.raw`(?:[A-Za-z0-9_-]+|"(?:[^"\\]|\\.)*"|'[^']*')`
+// A key segment followed by the rest of a dotted key and `=`. Values never match, because no
+// value is followed by `=`.
+const KEY = new RegExp(String.raw`${KEY_PART}(?=\s*(?:\.\s*${KEY_PART}\s*)*=)`)
+
 /**
  * Monarch rules for TOML. Monaco has no TOML grammar, and the INI grammar marks arrays, inline
  * tables and multi-line strings as errors.
@@ -17,6 +23,8 @@ export const TOML_TOKENS: languages.IMonarchLanguage = {
       [/#.*$/, 'comment'],
       // [table] and [[array.of.tables]] at the start of a line.
       [/^(\s*)(\[\[?)([^\]#]*)(\]\]?)/, ['', 'delimiter.bracket', 'type', 'delimiter.bracket']],
+      // Keys come before values, so `true = 1` and `"a" = 1` are keys.
+      [KEY, 'key'],
       [/"""/, 'string', '@multiBasic'],
       [/'''/, 'string', '@multiLiteral'],
       [/"/, 'string', '@basic'],
@@ -31,8 +39,6 @@ export const TOML_TOKENS: languages.IMonarchLanguage = {
       [/0x[\da-fA-F_]+|0o[0-7_]+|0b[01_]+/, 'number'],
       [/[+-]?\d[\d_]*(?:\.[\d_]+)?(?:[eE][+-]?\d+)?/, 'number'],
       [/\b(?:true|false)\b/, 'keyword'],
-      // A bare key, before `=` or before the `.` of a dotted key.
-      [/[A-Za-z0-9_-]+(?=\s*[=.])/, 'key'],
       [/=/, 'delimiter'],
       [/[[\]{}]/, 'delimiter.bracket'],
       [/[.,]/, 'delimiter'],

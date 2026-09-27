@@ -5,7 +5,8 @@ import { getSetting, setSetting } from '@/lib/db'
  * The files the Text Editor opened or saved most recently, newest first.
  *
  * WARNING: the list loads lazily. `record` and `remove` wait for the load, so a change made before
- * it finishes cannot write a short list over the stored one.
+ * it finishes cannot write a short list over the stored one. When the load fails, they change
+ * nothing.
  */
 
 export const RECENT_FILES_SETTING = 'textEditorRecentFiles'
@@ -22,17 +23,19 @@ function isPathList(value: unknown): value is string[] {
 
 type RecentFilesStore = {
   paths: string[]
-  load: () => Promise<void>
+  /** Resolves `false` when the stored list cannot be read. The next call tries again. */
+  load: () => Promise<boolean>
   record: (path: string) => Promise<void>
   remove: (path: string) => Promise<void>
   clear: () => Promise<void>
 }
 
-let loading: Promise<void> | null = null
+let loading: Promise<boolean> | null = null
 
 export const useRecentFilesStore = create<RecentFilesStore>((set, get) => {
   const change = async (next: (paths: string[]) => string[]) => {
-    await get().load()
+    // Without the stored list, a save would write a short list over it.
+    if (!(await get().load())) return
     const paths = next(get().paths)
     set({ paths })
     await setSetting(RECENT_FILES_SETTING, paths).catch((error: unknown) => {
@@ -46,9 +49,12 @@ export const useRecentFilesStore = create<RecentFilesStore>((set, get) => {
       loading ??= getSetting<unknown>(RECENT_FILES_SETTING, [])
         .then((stored) => {
           if (isPathList(stored)) set({ paths: stored.slice(0, MAX_RECENT_FILES) })
+          return true
         })
         .catch((error: unknown) => {
           console.warn('[recent-files] unable to load the list', error)
+          loading = null
+          return false
         })
       return loading
     },

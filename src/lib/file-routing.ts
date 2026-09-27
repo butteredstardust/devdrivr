@@ -42,6 +42,8 @@ export const EXTENSION_TOOL_IDS: Record<string, string> = {
   lua: 'text-editor',
   pl: 'text-editor',
   pm: 'text-editor',
+  // Routed, but not in `bundle.fileAssociations`. On Windows that claim replaces the handler that
+  // runs the script.
   ps1: 'text-editor',
   bat: 'text-editor',
   hcl: 'text-editor',
