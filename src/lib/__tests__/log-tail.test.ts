@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { detectLogEncoding, LogStream, parseLogRange } from '@/lib/log-tail'
+import { detectLogEncoding, LogStream, parseLogRange, stripAnsi } from '@/lib/log-tail'
 import { logReadResponse, utf8 } from './log-range-fixture'
 
-function read(stream: LogStream, file: Uint8Array, maxBytes = 1024, identity = 1n) {
-  return stream.accept(parseLogRange(logReadResponse(file, stream.offset, maxBytes, identity)))
+/** Reads as `useLogTail` does. `maxBytes` replaces the size that `nextRead` asks for. */
+function read(stream: LogStream, file: Uint8Array, maxBytes?: number, identity = 1n) {
+  const next = stream.nextRead(false)
+  const response = logReadResponse(file, next.start, maxBytes ?? next.maxBytes, identity)
+  return stream.accept(parseLogRange(response))
 }
 
 describe('parseLogRange', () => {
@@ -41,7 +44,7 @@ describe('detectLogEncoding', () => {
   })
 
   it('accepts UTF-8 that starts and ends inside a character', () => {
-    const bytes = utf8('é log é')
+    const bytes = utf8('é log ü é')
     const sample = bytes.subarray(1, bytes.length - 1)
     expect(detectLogEncoding(new Uint8Array(), sample).encoding).toBe('utf-8')
   })
@@ -50,6 +53,11 @@ describe('detectLogEncoding', () => {
     expect(
       detectLogEncoding(new Uint8Array(), new Uint8Array([0x63, 0x61, 0x66, 0xe9, 0x0a]))
     ).toMatchObject({ encoding: 'windows-1252', bomLength: 0 })
+  })
+
+  it('does not take an incomplete character at the end as proof of UTF-8', () => {
+    const sample = new Uint8Array([0x63, 0x61, 0x66, 0xe9])
+    expect(detectLogEncoding(new Uint8Array(), sample).encoding).toBe('windows-1252')
   })
 })
 
@@ -87,6 +95,7 @@ describe('LogStream', () => {
   it('reports a rotation when the file gets shorter', () => {
     const stream = new LogStream()
     read(stream, utf8('old line one\nold line two\n'))
+    expect(read(stream, utf8('new\n'))).toBeNull()
     expect(read(stream, utf8('new\n'))).toEqual({
       kind: 'replace',
       text: 'new\n',
@@ -105,6 +114,57 @@ describe('LogStream', () => {
       reason: 'rotated',
       text: 'bbbb\n',
     })
+  })
+
+  it('reports a rotation when the file was truncated and grew past the old size', () => {
+    const stream = new LogStream()
+    read(stream, utf8('aaaa\nbbbb\n'))
+    const file = utf8('cccc\ndddd\neeee\n')
+    expect(read(stream, file)).toBeNull()
+    expect(read(stream, file)).toEqual({
+      kind: 'replace',
+      text: 'cccc\ndddd\neeee\n',
+      reason: 'rotated',
+    })
+  })
+
+  it('keeps a whole line that starts exactly at the tail', () => {
+    const stream = new LogStream()
+    // 7 bytes of tail and 2 bytes before it, as `nextRead` asks for.
+    expect(read(stream, utf8('first\nsecond\n'), 7 + 2)).toMatchObject({ text: 'second\n' })
+  })
+
+  it('does not start a one-line UTF-8 tail with a broken character', () => {
+    const stream = new LogStream()
+    const update = read(stream, utf8('aéaéaé'), 4)
+    expect(update).toMatchObject({ text: 'aé' })
+    expect(stream.encoding).toBe('utf-8')
+  })
+
+  it('decides the encoding of an ASCII log at the first byte above 0x7f', () => {
+    const latin = new LogStream()
+    read(latin, utf8('ascii\n'))
+    const file = new Uint8Array([...utf8('ascii\n'), 0x63, 0x61, 0x66, 0xe9, 0x0a])
+    expect(read(latin, file)).toEqual({ kind: 'append', text: 'café\n' })
+    expect(latin.encoding).toBe('windows-1252')
+
+    const unicode = new LogStream()
+    read(unicode, utf8('ascii\n'))
+    expect(read(unicode, utf8('ascii\ncafé\n'))).toEqual({ kind: 'append', text: 'café\n' })
+    expect(unicode.encoding).toBe('utf-8')
+
+    const copyright = new LogStream()
+    read(copyright, utf8('a\n'))
+    const withSign = new Uint8Array([...utf8('a\n'), 0xa9, 0x20, 0x31, 0x0a])
+    expect(read(copyright, withSign)).toEqual({ kind: 'append', text: '© 1\n' })
+  })
+
+  it('holds back an incomplete last character until the next bytes decide the encoding', () => {
+    const stream = new LogStream()
+    const file = [0x63, 0x61, 0x66, 0xe9]
+    expect(read(stream, new Uint8Array(file))).toMatchObject({ text: 'caf' })
+    expect(read(stream, new Uint8Array([...file, 0x0a]))).toEqual({ kind: 'append', text: 'é\n' })
+    expect(stream.encoding).toBe('windows-1252')
   })
 
   it('replaces the text when an append is larger than one read', () => {
@@ -136,15 +196,32 @@ describe('LogStream', () => {
     expect(read(stream, file)).toEqual({ kind: 'append', text: 'two\n' })
   })
 
+  it('removes ANSI escapes, also when two reads split one', () => {
+    const stream = new LogStream()
+    const file = utf8('\x1b[31mred\x1b[0m\n\x1b[1;32mgreen\x1b[0m\n')
+    expect(read(stream, file.subarray(0, 14))).toMatchObject({ text: 'red\n' })
+    expect(read(stream, file.subarray(0, 18))).toEqual({ kind: 'append', text: '' })
+    expect(read(stream, file)).toEqual({ kind: 'append', text: 'green\n' })
+  })
+
   it('probes for new bytes and a new file without reading them', () => {
     const stream = new LogStream()
     read(stream, utf8('abc'), 1024, 1n)
-    const probe = (file: Uint8Array, identity: bigint) =>
-      stream.hasChanged(parseLogRange(logReadResponse(file, stream.offset, 0, identity)))
+    const probe = (file: Uint8Array, identity: bigint) => {
+      const { start, maxBytes } = stream.nextRead(true)
+      return stream.hasChanged(parseLogRange(logReadResponse(file, start, maxBytes, identity)))
+    }
 
     expect(probe(utf8('abc'), 1n)).toBe(false)
     expect(probe(utf8('abcd'), 1n)).toBe(true)
     expect(probe(utf8('xyz'), 2n)).toBe(true)
+    expect(probe(utf8('xyz'), 1n)).toBe(true)
     expect(stream.offset).toBe(3)
+  })
+})
+
+describe('stripAnsi', () => {
+  it('removes colour, cursor and title sequences and keeps the text', () => {
+    expect(stripAnsi('\x1b[2K\x1b[1Gdone \x1b]0;title\x07ok \x1b(B')).toBe('done ok ')
   })
 })

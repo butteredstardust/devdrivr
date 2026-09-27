@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { appendLogText, countLineBreaks, prepareLogContent } from '@/lib/log-viewer'
 
 describe('appendLogText', () => {
+  it('does not cut between the two halves of a surrogate pair', () => {
+    // 'x' and the two halves of the emoji, then 5 characters. A cut at 2 splits the emoji.
+    expect(appendLogText('x😀', 'yyyyy', 6)).toEqual({ content: 'yyyyy', removed: 3 })
+  })
+
   it('appends without a cut below the limit', () => {
     expect(appendLogText('a\n', 'b\n', 10)).toEqual({ content: 'a\nb\n', removed: 0 })
   })

@@ -70,7 +70,8 @@ fn file_identity(metadata: &std::fs::Metadata) -> u64 {
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
-        metadata.ino()
+        // Two file systems can use the same inode number.
+        metadata.ino() ^ metadata.dev().rotate_left(32)
     }
     #[cfg(not(unix))]
     {

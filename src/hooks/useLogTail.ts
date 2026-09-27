@@ -1,13 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { watch } from '@tauri-apps/plugin-fs'
-import {
-  LOG_APPEND_BYTES,
-  LOG_TAIL_BYTES,
-  LogStream,
-  parseLogRange,
-  type LogUpdate,
-} from '@/lib/log-tail'
+import { LogStream, parseLogRange, type LogUpdate } from '@/lib/log-tail'
 
 /**
  * Reads a log file, then reads the bytes that a writer appends to it.
@@ -19,8 +13,9 @@ import {
  * a change that the watch misses, for example after the log rotates and the watched file is gone.
  * One read runs at a time. A signal during a read starts one more read after it.
  *
- * While paused, a read asks for 0 bytes. It reports new bytes through `onWaiting` and moves
- * nothing, so Resume reads everything that arrived during the pause.
+ * While paused, a read asks for no new bytes. It reports new bytes through `onWaiting` and moves
+ * nothing, so Resume reads everything that arrived during the pause. A read that was in progress
+ * at the pause does the same with the bytes it returns.
  */
 
 export const LOG_POLL_MS = 2000
@@ -66,18 +61,17 @@ export function useLogTail(
     const stream = new LogStream()
 
     const readOnce = async () => {
-      const probe = pausedRef.current && stream.offset !== null
-      const maxBytes = probe ? 0 : stream.offset === null ? LOG_TAIL_BYTES : LOG_APPEND_BYTES
+      const { start, maxBytes } = stream.nextRead(pausedRef.current)
       const response = await invoke<ArrayBuffer | number[]>('log_file_read', {
         path,
-        start: stream.offset,
+        start,
         maxBytes,
       })
       if (cancelled) return
       const range = parseLogRange(response)
       succeeded = true
       callbacksRef.current.onRead()
-      if (probe) {
+      if (pausedRef.current && stream.offset !== null) {
         if (stream.hasChanged(range)) callbacksRef.current.onWaiting()
         return
       }

@@ -226,6 +226,8 @@ export default function LogViewer() {
       const name = fileNameRef.current ?? 'log'
       if (update.kind === 'append') {
         if (writeText('append', update.text) > 0) setTruncated(true)
+        // The first byte above 0x7f can change the encoding of an ASCII log.
+        setEncoding(stream.encoding)
         if (!followingRef.current) setNewLines((count) => count + countLineBreaks(update.text))
         return
       }

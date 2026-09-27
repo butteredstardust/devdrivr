@@ -26,6 +26,10 @@ export function appendLogText(
   const lineBreak = combined.indexOf('\n', cut)
   if (lineBreak !== -1 && lineBreak < combined.length - 1 && lineBreak - cut < MAX_LINE_SEARCH) {
     cut = lineBreak + 1
+  } else {
+    // Do not cut between the two halves of a surrogate pair.
+    const code = combined.charCodeAt(cut - 1)
+    if (code >= 0xd800 && code <= 0xdbff) cut++
   }
   return { content: combined.slice(cut), removed: cut }
 }

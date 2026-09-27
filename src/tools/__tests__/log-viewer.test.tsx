@@ -111,9 +111,10 @@ describe('LogViewer', () => {
     await change()
 
     await waitFor(() => expect(editor()).toHaveValue('one\ntwo\n'))
+    // The read starts at the offset, less the bytes it takes again to check them.
     expect(invoke).toHaveBeenLastCalledWith('log_file_read', {
       path: '/tmp/app.log',
-      start: 4,
+      start: 0,
       maxBytes: expect.any(Number),
     })
   })
