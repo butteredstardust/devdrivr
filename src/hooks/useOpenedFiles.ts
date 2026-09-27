@@ -4,6 +4,7 @@ import { listen } from '@tauri-apps/api/event'
 import { openFileInTool, toolIdForFile } from '@/lib/file-routing'
 import { filenameFromPath, isLikelyBinaryText } from '@/lib/file-io'
 import { MAX_TEXT_FILE_BYTES } from '@/lib/file-limits'
+import { decodeTextBytes } from '@/lib/text-encoding'
 import { getToolById } from '@/app/tool-registry'
 import { useUiStore } from '@/stores/ui.store'
 
@@ -39,8 +40,12 @@ export function useOpenedFiles(): void {
         const routedToolId = toolIdForFile(filename)
         // Always send a limit. Without one, Rust reads the whole file into memory.
         const maxBytes = getToolById(routedToolId)?.maxOpenBytes ?? MAX_TEXT_FILE_BYTES
-        const content = await invoke<string>('opened_file_read', { path, maxBytes })
+        // Rust returns raw bytes. Decode here, so a UTF-16 or Windows-1252 file is not refused.
+        const bytes = await invoke<ArrayBuffer | number[]>('opened_file_read', { path, maxBytes })
         if (cancelled) return
+        const { content } = decodeTextBytes(
+          bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : Uint8Array.from(bytes)
+        )
         if (isLikelyBinaryText(content)) {
           addToast(`Unsupported binary file: ${filename}`, 'error')
           return

@@ -37,6 +37,11 @@ type ReloadOnFileChangeOptions = {
    */
   readText?: ReadText
   /**
+   * Returns the encoding of the last save. A read in another encoding is then an external change,
+   * even when the text is the same. Needs a `readText` that reports the encoding.
+   */
+  getSavedEncoding?: () => TextFileEncoding
+  /**
    * Keeps the editor content when it differs from the last known disk content.
    *
    * Set this for a tool that does not ask before it replaces unsaved edits.
@@ -124,7 +129,9 @@ export function useReloadOnFileChange(options: ReloadOnFileChangeOptions): void 
             )
             if (cancelled) return
             const current = optionsRef.current.getContent()
-            if (content === current || appWriteContent === content) {
+            const savedEncoding = optionsRef.current.getSavedEncoding?.()
+            const sameEncoding = !encoding || !savedEncoding || encoding === savedEncoding
+            if (sameEncoding && (content === current || appWriteContent === content)) {
               diskBaseline = content
               continue
             }

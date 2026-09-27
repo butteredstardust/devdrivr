@@ -138,6 +138,19 @@ function encodeUtf16(content: string, littleEndian: boolean): Uint8Array {
   return bytes
 }
 
+// A surrogate half with no partner. UTF-8 would store it as U+FFFD, and UTF-16 would store bytes
+// that no strict decoder accepts.
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/
+
+function assertNoLoneSurrogate(content: string): void {
+  const match = LONE_SURROGATE.exec(content)
+  if (match) {
+    throw new UnencodableTextError(
+      `Line ${lineOf(content, match.index)} contains an incomplete character that no Unicode encoding can store. Remove it and save again.`
+    )
+  }
+}
+
 /**
  * Encodes the document for disk, with the BOM that the encoding requires.
  *
@@ -145,6 +158,7 @@ function encodeUtf16(content: string, littleEndian: boolean): Uint8Array {
  * it was.
  */
 export function encodeText(content: string, encoding: TextFileEncoding): Uint8Array {
+  if (encoding !== 'windows-1252') assertNoLoneSurrogate(content)
   switch (encoding) {
     case 'utf-8':
       return new TextEncoder().encode(content)

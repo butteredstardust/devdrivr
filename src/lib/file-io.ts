@@ -1,5 +1,5 @@
 import { open, save } from '@tauri-apps/plugin-dialog'
-import { readFile, readTextFile, stat, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { readFile, stat, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { MAX_TEXT_FILE_BYTES } from '@/lib/file-limits'
 import { notifyTextFileWrite } from '@/lib/text-file-write-events'
 import {
@@ -135,28 +135,23 @@ async function assertTextFileSize(filePath: string, maxBytes: number): Promise<v
   }
 }
 
+/**
+ * Reads a text file in its detected encoding and returns only the text.
+ *
+ * A tool that saves this text writes UTF-8. Use `readEncodedTextFile` to save the original
+ * encoding back.
+ */
 export async function readSupportedTextFile(
   filePath: string,
   options?: { maxBytes?: number }
 ): Promise<string> {
-  await assertTextFileSize(filePath, options?.maxBytes ?? MAX_TEXT_FILE_BYTES)
-  let content: string
-  try {
-    content = await readTextFile(filePath)
-  } catch (err) {
-    throw new Error(`Unable to read "${filePath}" as text`, { cause: err })
-  }
-  if (isLikelyBinaryText(content)) {
-    throw new Error(`Unsupported binary file: "${filePath}"`)
-  }
-  return content
+  return (await readEncodedTextFile(filePath, options)).content
 }
 
 /**
- * Reads a text file for an editor that saves it back.
+ * Reads a text file and reports its encoding, for an editor that saves it back.
  *
- * Unlike `readSupportedTextFile`, this keeps the byte order mark and every byte that is not valid
- * UTF-8. Pass the returned encoding to `saveEncodedTextFile` to write the same bytes back.
+ * Pass the returned encoding to `saveEncodedTextFile` to write the same bytes back.
  */
 export async function readEncodedTextFile(
   filePath: string,

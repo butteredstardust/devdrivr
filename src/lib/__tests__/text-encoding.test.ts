@@ -54,6 +54,20 @@ describe('encodeText', () => {
     }
   })
 
+  it('refuses a lone surrogate in every encoding instead of changing it', () => {
+    for (const encoding of [
+      'utf-8',
+      'utf-8-bom',
+      'utf-16le',
+      'utf-16be',
+      'windows-1252',
+    ] as const) {
+      expect(() => encodeText('a\n\ud800b', encoding)).toThrow(UnencodableTextError)
+    }
+    expect(() => encodeText('\udc00', 'utf-8')).toThrow(/Line 1/)
+    expect(encodeText('😀', 'utf-8')).toEqual(new TextEncoder().encode('😀'))
+  })
+
   it('refuses a character that Windows-1252 cannot store, and names the line', () => {
     expect(() => encodeText('ok\n✓', 'windows-1252')).toThrow(UnencodableTextError)
     expect(() => encodeText('ok\n✓', 'windows-1252')).toThrow(/Line 2/)

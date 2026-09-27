@@ -32,7 +32,7 @@ function Harness() {
  * path. Draining here removes the paths, exactly as the real command does.
  */
 let queued: string[] = []
-let files: Record<string, string> = {}
+let files: Record<string, string | Uint8Array> = {}
 let takeCount = 0
 
 function backendWith(contents: Record<string, string>) {
@@ -68,7 +68,10 @@ beforeEach(() => {
       const content = files[path]
       return content === undefined
         ? Promise.reject(new Error(`"${path}" was not opened by the system`))
-        : Promise.resolve(content)
+        : // Rust sends raw bytes. The IPC layer can deliver them as a plain number array.
+          Promise.resolve(
+            Array.from(typeof content === 'string' ? new TextEncoder().encode(content) : content)
+          )
     }
     return Promise.resolve(undefined)
   })
@@ -93,6 +96,17 @@ describe('useOpenedFiles', () => {
       filename: 'people.csv',
       path: '/tmp/people.csv',
     })
+  })
+
+  it('opens a UTF-16 file that a UTF-8 read would refuse as binary', async () => {
+    files = { '/tmp/legacy.txt': new Uint8Array([0xff, 0xfe, 0x68, 0x00, 0x69, 0x00]) }
+    queued = ['/tmp/legacy.txt']
+
+    render(<Harness />)
+
+    await vi.waitFor(() => expect(useWorkspaceStore.getState().activeTool).toBe('text-editor'))
+    const tab = useWorkspaceStore.getState().tabs[0]!
+    expect(claimPendingToolAction(tab.stateKey!)).toMatchObject({ content: 'hi' })
   })
 
   it('applies the routed tool file-size limit to operating-system opens', async () => {

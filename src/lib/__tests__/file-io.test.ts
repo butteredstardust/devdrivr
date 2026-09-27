@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { open, save } from '@tauri-apps/plugin-dialog'
-import { readFile, readTextFile, stat, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { readFile, stat, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import {
   buildExportFilename,
   exportFile,
@@ -26,16 +26,17 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
 
 vi.mock('@tauri-apps/plugin-fs', () => ({
   readFile: vi.fn(),
-  readTextFile: vi.fn(),
   stat: vi.fn(),
   writeTextFile: vi.fn(),
   writeFile: vi.fn(),
 }))
 
+const utf8 = (text: string) => new TextEncoder().encode(text)
+
 describe('file I/O', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(readTextFile).mockResolvedValue('hello')
+    vi.mocked(readFile).mockResolvedValue(utf8('hello'))
     vi.mocked(stat).mockResolvedValue({ size: 5 } as Awaited<ReturnType<typeof stat>>)
     vi.mocked(writeTextFile).mockResolvedValue()
     vi.mocked(writeFile).mockResolvedValue()
@@ -84,12 +85,12 @@ describe('file I/O', () => {
     vi.mocked(open).mockResolvedValue(null)
 
     await expect(openFileDialog()).resolves.toBeNull()
-    expect(readTextFile).not.toHaveBeenCalled()
+    expect(readFile).not.toHaveBeenCalled()
   })
 
   it('opens supported text and keeps the selected filename', async () => {
     vi.mocked(open).mockResolvedValue('/tmp/example.json')
-    vi.mocked(readTextFile).mockResolvedValue('{"ok":true}')
+    vi.mocked(readFile).mockResolvedValue(utf8('{"ok":true}'))
 
     await expect(openFileDialog()).resolves.toEqual({
       content: '{"ok":true}',
@@ -103,7 +104,7 @@ describe('file I/O', () => {
     vi.mocked(stat).mockResolvedValue({ size: 101 } as Awaited<ReturnType<typeof stat>>)
 
     await expect(openFileDialog({ maxBytes: 100 })).rejects.toThrow('import limit')
-    expect(readTextFile).not.toHaveBeenCalled()
+    expect(readFile).not.toHaveBeenCalled()
   })
 
   it('applies the default size limit when the caller sets none', async () => {
@@ -114,7 +115,7 @@ describe('file I/O', () => {
 
     await expect(openFileDialog()).rejects.toThrow('50 MB import limit')
     await expect(readSupportedTextFile('/tmp/huge.csv')).rejects.toThrow('50 MB import limit')
-    expect(readTextFile).not.toHaveBeenCalled()
+    expect(readFile).not.toHaveBeenCalled()
   })
 
   it('rejects an oversized image before reading it', async () => {
@@ -157,13 +158,13 @@ describe('file I/O', () => {
     expect(isLikelyBinaryText('normal\ntext\tcontent')).toBe(false)
     expect(isLikelyBinaryText('PNG\0binary')).toBe(true)
     expect(isLikelyBinaryText('\u0001\u0002\u0003readable')).toBe(true)
-    vi.mocked(readTextFile).mockResolvedValue('PNG\0binary')
+    vi.mocked(readFile).mockResolvedValue(utf8('PNG\0binary'))
 
     await expect(readSupportedTextFile('/tmp/image.png')).rejects.toThrow('Unsupported binary file')
   })
 
   it('turns filesystem decoding failures into clear text-file errors', async () => {
-    vi.mocked(readTextFile).mockRejectedValue(new Error('invalid utf-8'))
+    vi.mocked(readFile).mockRejectedValue(new Error('permission denied'))
 
     await expect(readSupportedTextFile('/tmp/archive.zip')).rejects.toThrow(
       'Unable to read "/tmp/archive.zip" as text'
