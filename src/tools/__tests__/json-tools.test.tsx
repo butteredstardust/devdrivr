@@ -104,6 +104,26 @@ describe('JsonTools helpers', () => {
       value: ['b', 'c'],
     })
   })
+
+  it('keeps indefinite path results wrapped for a single match', () => {
+    expect(queryJsonPath({ users: [{ admin: true }] }, '$.users[?(@.admin)]')).toEqual({
+      found: true,
+      value: [{ admin: true }],
+    })
+    expect(queryJsonPath({ a: [[1, 2]] }, '$.a[*]')).toEqual({
+      found: true,
+      value: [[1, 2]],
+    })
+    expect(queryJsonPath({ a: [1, 2] }, '$.a[0:1]')).toEqual({ found: true, value: [1] })
+    expect(queryJsonPath({ a: { b: 1 } }, '$..b')).toEqual({ found: true, value: [1] })
+  })
+
+  it('unwraps only definite child and single-index paths', () => {
+    const data = { a: [10, 20], 'k-1': 7 }
+    expect(queryJsonPath(data, '$.a[0]')).toEqual({ found: true, value: 10 })
+    expect(queryJsonPath(data, "$['k-1']")).toEqual({ found: true, value: 7 })
+    expect(queryJsonPath(data, '$.a[0,1]')).toEqual({ found: true, value: [10, 20] })
+  })
 })
 
 describe('JsonTools', () => {

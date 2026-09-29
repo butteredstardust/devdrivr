@@ -178,8 +178,16 @@ const CSS_NAMED_COLORS: Record<string, string> = {
 
 // ── Color Math ───────────────────────────────────────────────────────
 
+function parseAlpha(value: string | undefined): number | null {
+  if (value === undefined) return 1
+  const alpha = value.endsWith('%') ? Number(value.slice(0, -1)) / 100 : Number(value)
+  return Number.isFinite(alpha) && alpha >= 0 && alpha <= 1 ? alpha : null
+}
+
 export function parseColor(input: string): RGB | null {
   const trimmed = input.trim().toLowerCase()
+
+  if (trimmed === 'transparent') return { r: 0, g: 0, b: 0, a: 0 }
 
   // Hex: #rgb, #rgba, #rrggbb, #rrggbbaa
   const hexMatch = trimmed.match(/^#((?:[0-9a-f]{3,4})|(?:[0-9a-f]{6})|(?:[0-9a-f]{8}))$/)
@@ -208,50 +216,59 @@ export function parseColor(input: string): RGB | null {
 
   // rgb(r, g, b) or rgba(r, g, b, a) — also modern space syntax
   const rgbMatch = trimmed.match(
-    /^rgba?\(\s*(\d+)\s*[,\s]\s*(\d+)\s*[,\s]\s*(\d+)(?:\s*[,/]\s*([\d.]+%?))?\s*\)$/
+    /^rgba?\(\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)%?)\s*[,\s]\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)%?)\s*[,\s]\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)%?)(?:\s*[,/]\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)%?))?\s*\)$/
   )
   if (rgbMatch) {
-    const alphaText = rgbMatch[4]
-    const alpha = alphaText
-      ? alphaText.endsWith('%')
-        ? Number(alphaText.slice(0, -1)) / 100
-        : Number(alphaText)
-      : 1
-    const rgb = { r: Number(rgbMatch[1]), g: Number(rgbMatch[2]), b: Number(rgbMatch[3]), a: alpha }
+    const redText = rgbMatch[1]
+    const greenText = rgbMatch[2]
+    const blueText = rgbMatch[3]
+    if (redText === undefined || greenText === undefined || blueText === undefined) return null
+    const channelTexts = [redText, greenText, blueText]
+    const percentageChannels = channelTexts.map((channel) => channel.endsWith('%'))
+    if (!percentageChannels.every((percentage) => percentage === percentageChannels[0])) return null
+    // Round to 8-bit channels, so the RGB output row shows integers like every other input.
+    const channels = channelTexts.map((channel) =>
+      Math.round(
+        percentageChannels[0] ? (Number(channel.slice(0, -1)) / 100) * 255 : Number(channel)
+      )
+    )
+    const channelLimit = percentageChannels[0] ? 100 : 255
+    const sourceChannels = channelTexts.map((channel) => Number(channel.replace('%', '')))
+    const alpha = parseAlpha(rgbMatch[4])
     if (
-      [rgb.r, rgb.g, rgb.b].every(
-        (channel) => Number.isInteger(channel) && channel >= 0 && channel <= 255
-      ) &&
-      Number.isFinite(alpha) &&
-      alpha >= 0 &&
-      alpha <= 1
-    ) {
-      return rgb
-    }
-    return null
+      sourceChannels.some(
+        (channel) => !Number.isFinite(channel) || channel < 0 || channel > channelLimit
+      ) ||
+      alpha === null
+    )
+      return null
+    return { r: channels[0] ?? 0, g: channels[1] ?? 0, b: channels[2] ?? 0, a: alpha }
   }
 
   // hsl(h, s%, l%) — also modern space syntax
   const hslMatch = trimmed.match(
-    /^hsla?\(\s*([+-]?[\d.]+)(?:deg)?\s*[,\s]\s*([\d.]+)%\s*[,\s]\s*([\d.]+)%(?:\s*[,/]\s*([\d.]+%?))?\s*\)$/
+    /^hsla?\(\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))(deg|rad|grad|turn)?\s*[,\s]\s*((?:\d+(?:\.\d*)?|\.\d+))%\s*[,\s]\s*((?:\d+(?:\.\d*)?|\.\d+))%(?:\s*[,/]\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)%?))?\s*\)$/
   )
   if (hslMatch) {
-    const hsl = { h: Number(hslMatch[1]), s: Number(hslMatch[2]), l: Number(hslMatch[3]) }
-    const alphaText = hslMatch[4]
-    const alpha = alphaText
-      ? alphaText.endsWith('%')
-        ? Number(alphaText.slice(0, -1)) / 100
-        : Number(alphaText)
-      : 1
+    const hue = Number(hslMatch[1])
+    const hueUnit = hslMatch[2]
+    const h =
+      hueUnit === 'rad'
+        ? (hue * 180) / Math.PI
+        : hueUnit === 'grad'
+          ? hue * 0.9
+          : hueUnit === 'turn'
+            ? hue * 360
+            : hue
+    const hsl = { h, s: Number(hslMatch[3]), l: Number(hslMatch[4]) }
+    const alpha = parseAlpha(hslMatch[5])
     if (
       Number.isFinite(hsl.h) &&
       hsl.s >= 0 &&
       hsl.s <= 100 &&
       hsl.l >= 0 &&
       hsl.l <= 100 &&
-      Number.isFinite(alpha) &&
-      alpha >= 0 &&
-      alpha <= 1
+      alpha !== null
     ) {
       return { ...hslToRgb(hsl), a: alpha }
     }
@@ -259,10 +276,27 @@ export function parseColor(input: string): RGB | null {
   }
 
   // oklch(L C H) — parse and convert
-  const oklchMatch = trimmed.match(/oklch\(\s*([\d.]+)%?\s+([\d.]+)\s+([\d.]+)/)
+  const oklchMatch = trimmed.match(
+    /^oklch\(\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))(%?)\s+([+-]?(?:\d+(?:\.\d*)?|\.\d+))(%?)\s+([+-]?(?:\d+(?:\.\d*)?|\.\d+))(?:deg)?(?:\s*\/\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)%?))?\s*\)$/
+  )
   if (oklchMatch) {
-    const L = Number(oklchMatch[1]) > 1 ? Number(oklchMatch[1]) / 100 : Number(oklchMatch[1])
-    return oklchToRgb(L, Number(oklchMatch[2]), Number(oklchMatch[3]))
+    const lightnessSource = Number(oklchMatch[1])
+    const chromaSource = Number(oklchMatch[3])
+    const lightness = oklchMatch[2] === '%' ? lightnessSource / 100 : lightnessSource
+    const chroma = oklchMatch[4] === '%' ? (chromaSource / 100) * 0.4 : chromaSource
+    const hue = Number(oklchMatch[5])
+    const alpha = parseAlpha(oklchMatch[6])
+    if (
+      !Number.isFinite(lightness) ||
+      lightness < 0 ||
+      lightness > 1 ||
+      !Number.isFinite(chroma) ||
+      chroma < 0 ||
+      !Number.isFinite(hue) ||
+      alpha === null
+    )
+      return null
+    return { ...oklchToRgb(lightness, chroma, hue), a: alpha }
   }
 
   // Named CSS colors
