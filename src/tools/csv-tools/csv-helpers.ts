@@ -1,5 +1,6 @@
 import Papa from 'papaparse'
 import yaml from 'js-yaml'
+import { exactNumber, parseLosslessJson } from '@/lib/lossless-json'
 
 // ---------------------------------------------------------------------------
 // Delimiters
@@ -279,7 +280,7 @@ export function parseCsv(text: string, options: ParseOptions): CsvParse {
 export function parseJsonRows(text: string, typed = false): CsvParse {
   if (!text.trim()) return { status: 'empty' }
   try {
-    const parsed: unknown = JSON.parse(text)
+    const parsed = parseLosslessJson(text)
     if (
       !Array.isArray(parsed) ||
       !parsed.every((row) => row !== null && typeof row === 'object' && !Array.isArray(row))
@@ -329,8 +330,8 @@ function coerce(value: string): unknown {
   if (trimmed === 'false') return false
   // A leading zero or a `+` is a code (ZIP, phone, SKU), not arithmetic.
   if (/^-?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?$/.test(trimmed)) {
-    const parsed = Number(trimmed)
-    if (Number.isFinite(parsed)) return parsed
+    const parsed = exactNumber(trimmed)
+    if (parsed !== null) return parsed
   }
   return value
 }
@@ -369,7 +370,8 @@ export const FORMAT_LANGUAGES: Record<OutputFormat, string> = {
 }
 
 function cellText(value: unknown): string {
-  return value === null || value === undefined ? '' : String(value)
+  if (value === null || value === undefined) return ''
+  return typeof value === 'object' ? JSON.stringify(value) : String(value)
 }
 
 /** `|` and newlines would break out of a Markdown cell. */
@@ -380,7 +382,7 @@ function escapeMarkdown(value: unknown): string {
 function sqlLiteral(value: unknown): string {
   if (value === null || value === undefined || value === '') return 'NULL'
   if (typeof value === 'number' || typeof value === 'boolean') return String(value)
-  return `'${String(value).replace(/'/g, "''")}'`
+  return `'${cellText(value).replace(/'/g, "''")}'`
 }
 
 /** A quoted identifier: a column called `order` or `first name` is legal SQL. */
@@ -464,10 +466,14 @@ export function isDateString(value: unknown): boolean {
   return !Number.isNaN(new Date(value).getTime())
 }
 
+function numericValue(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  if (typeof value !== 'string' || value.trim() === '') return null
+  return exactNumber(value.trim())
+}
+
 function isNumeric(value: unknown): boolean {
-  if (typeof value === 'number') return Number.isFinite(value)
-  if (typeof value !== 'string' || value.trim() === '') return false
-  return Number.isFinite(Number(value))
+  return numericValue(value) !== null
 }
 
 export function inferColumnType(values: unknown[]): ColumnType {
@@ -499,11 +505,14 @@ export function summarizeColumn(name: string, values: unknown[]): ColumnSummary 
   const type = inferColumnType(values)
   const blanks = values.filter(isBlank).length
   const filled = values.filter((value) => !isBlank(value))
-  const unique = new Set(filled.map((value) => String(value))).size
+  const unique = new Set(filled.map(cellText)).size
 
   let numeric: ColumnSummary['numeric'] = null
   if (type === 'number' || type === 'mixed') {
-    const numbers = filled.map(Number).filter((n) => Number.isFinite(n))
+    const numbers = filled.flatMap((value) => {
+      const number = numericValue(value)
+      return number === null ? [] : [number]
+    })
     if (numbers.length > 0) {
       const sorted = [...numbers].sort((a, b) => a - b)
       const mid = Math.floor(sorted.length / 2)
@@ -526,7 +535,7 @@ export function summarizeColumn(name: string, values: unknown[]): ColumnSummary 
     const counts = new Map<string, number>()
     let longest = 0
     for (const value of filled) {
-      const asText = String(value)
+      const asText = cellText(value)
       longest = Math.max(longest, asText.length)
       counts.set(asText, (counts.get(asText) ?? 0) + 1)
     }

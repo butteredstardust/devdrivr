@@ -48,6 +48,15 @@ describe('CaseConverter', () => {
     expect(results.find((result) => result.id === 'snake')?.value).toBe('http2_server')
   })
 
+  it('splits camel-case boundaries across Unicode letters', () => {
+    const snake = (input: string) =>
+      computeCases(input).find((result) => result.id === 'snake')?.value
+
+    expect(snake('caféBar')).toBe('café_bar')
+    expect(snake('ÜberCool')).toBe('über_cool')
+    expect(snake('naïveÉtéTest')).toBe('naïve_été_test')
+  })
+
   it('shows placeholder when input is empty', () => {
     render(<CaseConverter />)
     expect(screen.getByText(/enter text above to see conversions/i)).toBeInTheDocument()

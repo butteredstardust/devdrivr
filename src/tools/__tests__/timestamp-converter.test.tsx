@@ -122,6 +122,114 @@ describe('TimestampConverter', () => {
     expect(matches.length).toBeGreaterThanOrEqual(1)
   })
 
+  it.each(['1727600000', '1727600000000', '1727600000000000', '1727600000000000000'])(
+    'auto-detects the epoch unit for %s',
+    (value) => {
+      renderTool(TimestampConverter)
+      fireEvent.change(screen.getByLabelText('Timestamp or date to convert'), {
+        target: { value },
+      })
+
+      expect(screen.getByText(new Date(1727600000000).toISOString())).toBeInTheDocument()
+    }
+  )
+
+  it('preserves millisecond precision from nanoseconds', () => {
+    renderTool(TimestampConverter)
+    fireEvent.change(screen.getByLabelText('Timestamp or date to convert'), {
+      target: { value: '1727600000123456789' },
+    })
+
+    expect(screen.getByText(new Date(1727600000123).toISOString())).toBeInTheDocument()
+  })
+
+  it.each([
+    ['microseconds', '1727600000000000', 1000n],
+    ['nanoseconds', '1727600000000000000', 1_000_000n],
+  ])('parses and writes %s epochs', (unit, value, multiplier) => {
+    vi.useFakeTimers()
+    const now = new Date('2024-09-29T08:53:20.123Z')
+    vi.setSystemTime(now)
+    renderTool(TimestampConverter)
+    fireEvent.change(screen.getByLabelText('Numeric input unit'), { target: { value: unit } })
+    fireEvent.change(screen.getByLabelText('Timestamp or date to convert'), {
+      target: { value },
+    })
+    expect(screen.getByText(new Date(1727600000000).toISOString())).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Now' }))
+    expect(screen.getByLabelText('Timestamp or date to convert')).toHaveValue(
+      String(BigInt(now.getTime()) * multiplier)
+    )
+    expect(screen.getByText(now.toISOString())).toBeInTheDocument()
+  })
+
+  it('floors a negative microsecond epoch before converting it to a date', () => {
+    renderTool(TimestampConverter)
+    fireEvent.change(screen.getByLabelText('Numeric input unit'), {
+      target: { value: 'microseconds' },
+    })
+    fireEvent.change(screen.getByLabelText('Timestamp or date to convert'), {
+      target: { value: '-1' },
+    })
+
+    expect(screen.getByText('1969-12-31T23:59:59.999Z')).toBeInTheDocument()
+  })
+
+  it.each([
+    ['microseconds', '-1', '-1.0', '1969-12-31T23:59:59.999Z'],
+    ['nanoseconds', '-1', '-1.0', '1969-12-31T23:59:59.999Z'],
+    ['auto', '-1000000000000001', '-1000000000000001.0', '1938-04-24T22:13:19.999Z'],
+    ['auto', '-1000000000000000100', '-1000000000000000100.0', '1938-04-24T22:13:19.999Z'],
+  ])('floors equivalent integer and decimal %s epochs', (unit, integer, decimal, expected) => {
+    renderTool(TimestampConverter)
+    fireEvent.change(screen.getByLabelText('Numeric input unit'), { target: { value: unit } })
+    const input = screen.getByLabelText('Timestamp or date to convert')
+
+    fireEvent.change(input, { target: { value: integer } })
+    expect(screen.getByText(expected)).toBeInTheDocument()
+    fireEvent.change(input, { target: { value: decimal } })
+    expect(screen.getByText(expected)).toBeInTheDocument()
+  })
+
+  it.each([
+    ['microseconds', '9007199254740999', '9007199254740999.0', 9_007_199_254_740],
+    ['nanoseconds', '9007199254740999999', '9007199254740999999.0', 9_007_199_254_740],
+  ])(
+    'parses large plain decimal %s epochs without Number rounding',
+    (unit, integer, decimal, ms) => {
+      renderTool(TimestampConverter)
+      fireEvent.change(screen.getByLabelText('Numeric input unit'), { target: { value: unit } })
+      const input = screen.getByLabelText('Timestamp or date to convert')
+      const expected = new Date(ms).toISOString()
+
+      fireEvent.change(input, { target: { value: integer } })
+      expect(screen.getByText(expected)).toBeInTheDocument()
+      fireEvent.change(input, { target: { value: decimal } })
+      expect(screen.getByText(expected)).toBeInTheDocument()
+    }
+  )
+
+  it.each(['microseconds', 'nanoseconds'])('restores the saved %s epoch unit', (epochUnit) => {
+    useToolStateCache.setState({
+      cache: new Map([['timestamp-converter', { input: '', zone: 'UTC', epochUnit }]]),
+    })
+    render(<TimestampConverter />)
+
+    expect(screen.getByLabelText('Numeric input unit')).toHaveValue(epochUnit)
+  })
+
+  it('falls back to auto for an unknown saved epoch unit', () => {
+    useToolStateCache.setState({
+      cache: new Map([
+        ['timestamp-converter', { input: '', zone: 'UTC', epochUnit: 'fortnights' }],
+      ]),
+    })
+    render(<TimestampConverter />)
+
+    expect(screen.getByLabelText('Numeric input unit')).toHaveValue('auto')
+  })
+
   it('parses compact YYYYMMDD dates before treating digits as epoch seconds', () => {
     renderTool(TimestampConverter)
     fireEvent.change(screen.getByLabelText('Timestamp or date to convert'), {

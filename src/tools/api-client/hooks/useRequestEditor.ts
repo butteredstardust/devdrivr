@@ -8,13 +8,14 @@ import {
   contentTypeFor,
   FORMDATA_MODE,
   isBoilerplateContentType,
+  isCanonicalFormBody,
+  isFormMode,
   parseFormBody,
   serializeFormBody,
   type FormField,
 } from '@/tools/api-client/form-body'
 import {
   applyMethodDefaults,
-  BODY_METHODS,
   buildUrlWithParams,
   MAX_UPLOAD_FILE_BYTES,
   parseQueryParams,
@@ -27,6 +28,14 @@ import {
 type UseRequestEditorInput = {
   state: ApiClientState
   updateState: (patch: Partial<ApiClientState>) => void
+}
+
+type BodyFamily = 'document' | 'form'
+
+function bodyFamily(mode: string): BodyFamily | null {
+  if (mode === 'json' || mode === 'text') return 'document'
+  if (isFormMode(mode)) return 'form'
+  return null
 }
 
 export function useRequestEditor({ state, updateState }: UseRequestEditorInput) {
@@ -113,10 +122,19 @@ export function useRequestEditor({ state, updateState }: UseRequestEditorInput) 
    */
   const [blankRows, setBlankRows] = useState(0)
 
-  const clearTransientFormState = useCallback(() => {
+  const bodyStashRef = useRef<Partial<Record<BodyFamily, string>>>({})
+  const lastBodyFamilyRef = useRef<BodyFamily | null>(bodyFamily(bodyMode))
+
+  const clearFormRows = useCallback(() => {
     setFormFiles({})
     setBlankRows(0)
   }, [])
+
+  const clearTransientFormState = useCallback(() => {
+    clearFormRows()
+    bodyStashRef.current = {}
+    lastBodyFamilyRef.current = null
+  }, [clearFormRows])
 
   const formFields = useMemo<FormField[]>(() => {
     const parsed = parseFormBody(body).map((f, index) => {
@@ -148,19 +166,42 @@ export function useRequestEditor({ state, updateState }: UseRequestEditorInput) 
    * this left the request declaring JSON while sending `a=1&b=2`. Only the app's own boilerplate
    * values are rewritten; a hand-typed content type is the user's decision and survives.
    */
-  const handleBodyModeChange = useCallback(
-    (nextMode: string) => {
-      if (bodyMode === FORMDATA_MODE && nextMode !== FORMDATA_MODE) clearTransientFormState()
+  const transitionBodyMode = useCallback(
+    (nextMode: string, sourceHeaders = headers) => {
+      if (bodyMode === FORMDATA_MODE && nextMode !== FORMDATA_MODE) clearFormRows()
+      const currentFamily = bodyFamily(bodyMode) ?? lastBodyFamilyRef.current
+      const nextFamily = bodyFamily(nextMode)
+      let nextBody = body
+      if (currentFamily && nextFamily && currentFamily !== nextFamily) {
+        bodyStashRef.current[currentFamily] = body
+        nextBody =
+          bodyStashRef.current[nextFamily] ??
+          (currentFamily === 'document' && nextFamily === 'form' && isCanonicalFormBody(body)
+            ? body
+            : '')
+      } else if (currentFamily && !nextFamily) {
+        bodyStashRef.current[currentFamily] = body
+      }
+      if (nextFamily) lastBodyFamilyRef.current = nextFamily
+      else if (currentFamily) lastBodyFamilyRef.current = currentFamily
+
       const implied = contentTypeFor(nextMode)
-      const nextHeaders = headers.flatMap((h) => {
+      const nextHeaders = sourceHeaders.flatMap((h) => {
         if (h.key.toLowerCase() !== 'content-type' || !isBoilerplateContentType(h.value)) return [h]
         // Multipart's header is generated at send time with the boundary, so the row goes away.
         if (nextMode === FORMDATA_MODE) return []
         return implied ? [{ ...h, value: implied }] : [h]
       })
-      updateDraft({ bodyMode: nextMode, headers: nextHeaders })
+      return { body: nextBody, bodyMode: nextMode, headers: nextHeaders }
     },
-    [bodyMode, clearTransientFormState, headers, updateDraft]
+    [body, bodyMode, clearFormRows, headers]
+  )
+
+  const handleBodyModeChange = useCallback(
+    (nextMode: string) => {
+      updateDraft(transitionBodyMode(nextMode))
+    },
+    [transitionBodyMode, updateDraft]
   )
 
   const addFormField = useCallback(() => {
@@ -236,10 +277,14 @@ export function useRequestEditor({ state, updateState }: UseRequestEditorInput) 
 
   const handleMethodChange = useCallback(
     (nextMethod: string) => {
-      if (bodyMode === FORMDATA_MODE && !BODY_METHODS.has(nextMethod)) clearTransientFormState()
-      updateState({ draft: applyMethodDefaults(state.draft, nextMethod) })
+      const nextDraft = applyMethodDefaults(state.draft, nextMethod)
+      const modePatch =
+        nextDraft.bodyMode === bodyMode
+          ? {}
+          : transitionBodyMode(nextDraft.bodyMode, nextDraft.headers)
+      updateState({ draft: { ...nextDraft, ...modePatch } })
     },
-    [bodyMode, clearTransientFormState, state.draft, updateState]
+    [bodyMode, state.draft, transitionBodyMode, updateState]
   )
 
   return {

@@ -6,6 +6,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { buildExportFilename, exportFile } from '@/lib/file-io'
 import { formatBytes } from '@/lib/format'
+import { reformatJson } from '@/lib/lossless-json'
 import {
   buildMultipartBody,
   contentTypeFor,
@@ -23,6 +24,7 @@ import {
   MAX_DISPLAY_BYTES,
   MAX_HISTORY_RESPONSE_CHARS,
   MAX_RESPONSE_BYTES,
+  normalizeRequestUrl,
   responseMime,
   unresolvedVariableNames,
   type RequestDraft,
@@ -91,8 +93,13 @@ export function useRequestTransport({
       }
       setUnresolvedVariables([])
       const interpolatedUrl = interpolate(url, envVars)
-      if (!interpolatedUrl.trim()) {
-        setLastAction('Enter a URL (or ensure {{variable}} is populated)', 'error')
+      let requestUrl: string
+      try {
+        requestUrl = normalizeRequestUrl(interpolatedUrl)
+      } catch (e) {
+        setResponse(null)
+        setError((e as Error).message)
+        setLastAction('Request failed', 'error')
         return
       }
 
@@ -157,7 +164,7 @@ export function useRequestTransport({
           if (implied && !hasContentType) fetchHeaders['Content-Type'] = implied
         }
 
-        const res = await tauriFetch(interpolatedUrl, opts)
+        const res = await tauriFetch(requestUrl, opts)
         const time = Math.round(performance.now() - start)
 
         // Refuse before reading when the server declares an oversized body — reading first and
@@ -210,7 +217,7 @@ export function useRequestTransport({
         // fields rather than an explicit `undefined` value.
         const historyEntry = {
           subTab: method,
-          input: `${method} ${interpolatedUrl}`,
+          input: `${method} ${requestUrl}`,
           output: `${res.status} ${res.statusText} · ${time}ms · ${formatBytes(size)}`,
           ...(isTextResponse(mimeType)
             ? { responseBody: resBody.slice(0, MAX_HISTORY_RESPONSE_CHARS) }
@@ -268,9 +275,16 @@ export function useRequestTransport({
    * the result runs as-is rather than pasting `{{token}}` into someone else's terminal.
    */
   const handleCopyAsCurl = useCallback(() => {
+    const interpolatedUrl = interpolate(url, envVars)
+    let exportUrl = interpolatedUrl
+    try {
+      exportUrl = normalizeRequestUrl(interpolatedUrl)
+    } catch {
+      // Keep copy available for incomplete drafts.
+    }
     const command = toCurl({
       method,
-      url: interpolate(url, envVars),
+      url: exportUrl,
       headers: headers.map((h) => ({
         ...h,
         key: interpolate(h.key, envVars),
@@ -307,7 +321,7 @@ export function useRequestTransport({
     if (!response?.body) return ''
     if (responseLanguage === 'json' && !response.displayTruncated) {
       try {
-        return JSON.stringify(JSON.parse(response.body), null, 2)
+        return reformatJson(response.body, { indent: 2 })
       } catch {
         return response.body
       }

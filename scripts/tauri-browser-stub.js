@@ -115,20 +115,34 @@ export function installTauriStub() {
     if (cmd === 'plugin:http|fetch') {
       const { method, url, headers, data } = args?.clientConfig ?? {}
       const rid = ++httpRid
-      httpRequests.set(
-        rid,
-        fetch(url, {
-          method,
-          headers,
-          body: data ? new Uint8Array(data) : undefined,
-        })
-      )
+      const controller = new AbortController()
+      const response = fetch(url, {
+        method,
+        headers,
+        body: data ? new Uint8Array(data) : undefined,
+        signal: controller.signal,
+      })
+      // A request cancelled before `fetch_send` is never awaited. Observe the rejection here so
+      // it does not surface as an unhandled rejection.
+      response.catch(() => {})
+      httpRequests.set(rid, { controller, response })
       return rid
     }
     if (cmd === 'plugin:http|fetch_send') {
-      const response = await httpRequests.get(args.rid)
-      httpRequests.delete(args.rid)
-      httpBodies.set(args.rid, new Uint8Array(await response.arrayBuffer()))
+      // Rust races the request against an abort channel, so a cancel or a timeout rejects this
+      // call. Aborting the controller makes the awaited `fetch` reject the same way.
+      const request = httpRequests.get(args.rid)
+      if (!request) throw new Error('Request cancelled')
+      let response
+      try {
+        response = await request.response
+        httpBodies.set(args.rid, new Uint8Array(await response.arrayBuffer()))
+      } catch (error) {
+        if (request.controller.signal.aborted) throw new Error('Request cancelled')
+        throw error
+      } finally {
+        httpRequests.delete(args.rid)
+      }
       return {
         status: response.status,
         statusText: response.statusText,
@@ -147,6 +161,7 @@ export function installTauriStub() {
       return [...body, 0]
     }
     if (cmd === 'plugin:http|fetch_cancel' || cmd === 'plugin:http|fetch_cancel_body') {
+      httpRequests.get(args?.rid)?.controller.abort()
       httpRequests.delete(args?.rid)
       httpBodies.delete(args?.rid)
       return null

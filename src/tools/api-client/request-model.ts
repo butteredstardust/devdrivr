@@ -182,6 +182,64 @@ export function interpolate(text: string, vars: Record<string, string>): string 
   })
 }
 
+export function isValidRequestHostname(hostname: string): boolean {
+  return /^\[[0-9a-f:.]+\]$/i.test(hostname) || /^[a-z\d._-]+$/i.test(hostname)
+}
+
+function isIpv4Loopback(hostname: string): boolean {
+  const octets = hostname.split('.')
+  return (
+    octets.length === 4 &&
+    octets.every((octet) => /^\d+$/.test(octet) && Number(octet) <= 255) &&
+    octets[0] === '127'
+  )
+}
+
+function hostnameLiteral(url: string): string {
+  const authorityEnd = url.search(/[/?#]/)
+  const authority = authorityEnd === -1 ? url : url.slice(0, authorityEnd)
+  const hostAndPort = authority.slice(authority.lastIndexOf('@') + 1)
+  if (hostAndPort.startsWith('[')) return hostAndPort.slice(0, hostAndPort.indexOf(']') + 1)
+  return hostAndPort.replace(/:\d*$/, '')
+}
+
+export function normalizeRequestUrl(url: string): string {
+  const trimmed = url.trim()
+  const error = new Error('Enter an http:// or https:// URL')
+  if (!trimmed) throw error
+  if (/^https?:/i.test(trimmed) && !/^https?:\/\//i.test(trimmed)) throw error
+
+  const hasScheme = /^[a-z][a-z\d+.-]*:\/\//i.test(trimmed)
+  if (hasScheme) {
+    try {
+      const parsed = new URL(trimmed)
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw error
+      if (!isValidRequestHostname(parsed.hostname)) throw error
+      return trimmed
+    } catch {
+      throw error
+    }
+  }
+
+  try {
+    const parsed = new URL(`https://${trimmed}`)
+    if (!isValidRequestHostname(parsed.hostname)) throw error
+    const hostname = parsed.hostname.toLowerCase()
+    const localHostname = hostname.endsWith('.') ? hostname.slice(0, -1) : hostname
+    const literalHostname = hostnameLiteral(trimmed).replace(/\.$/, '')
+    const local =
+      localHostname === 'localhost' ||
+      isIpv4Loopback(literalHostname) ||
+      localHostname === '0.0.0.0' ||
+      localHostname === '[::]' ||
+      localHostname === '[::1]' ||
+      localHostname.endsWith('.localhost')
+    return `${local ? 'http' : 'https'}://${trimmed}`
+  } catch {
+    throw error
+  }
+}
+
 export function unresolvedVariableNames(values: string[], vars: Record<string, string>): string[] {
   const names = new Set<string>()
   for (const value of values) {

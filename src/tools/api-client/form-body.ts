@@ -70,6 +70,11 @@ export function serializeFormBody(fields: FormField[]): string {
   return search.toString()
 }
 
+/** Whether a document already uses the canonical URL-encoded form representation. */
+export function isCanonicalFormBody(body: string): boolean {
+  return serializeFormBody(parseFormBody(body)) === body.trim()
+}
+
 /** `Content-Type` a mode implies, or `null` when the mode doesn't dictate one. */
 export function contentTypeFor(mode: string): string | null {
   if (mode === 'json') return 'application/json'

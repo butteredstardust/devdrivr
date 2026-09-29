@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { screen, fireEvent } from '@testing-library/react'
+import { screen, fireEvent, waitFor } from '@testing-library/react'
 import { renderTool } from '@/tools/__tests__/test-utils'
 import JwtDecoder from '@/tools/jwt-decoder/JwtDecoder'
 
@@ -8,7 +8,11 @@ const TEST_JWT =
 const NULL_PAYLOAD_JWT = 'eyJhbGciOiJub25lIn0.bnVsbA.'
 
 function base64UrlJson(value: unknown): string {
-  const bytes = new TextEncoder().encode(JSON.stringify(value))
+  return base64UrlText(JSON.stringify(value))
+}
+
+function base64UrlText(value: string): string {
+  const bytes = new TextEncoder().encode(value)
   let binary = ''
   for (const byte of bytes) binary += String.fromCharCode(byte)
   return btoa(binary).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
@@ -28,6 +32,38 @@ describe('JwtDecoder', () => {
     expect(screen.getByText('Header')).toBeInTheDocument()
     expect(screen.getByText('Payload Claims')).toBeInTheDocument()
     expect(screen.getByText('Signature')).toBeInTheDocument()
+  })
+
+  it('strips a case-insensitive Bearer prefix from decoding and the token preview', () => {
+    renderTool(JwtDecoder)
+    fireEvent.change(screen.getByPlaceholderText(/paste a jwt/i), {
+      target: { value: `bEaReR \t ${TEST_JWT}` },
+    })
+    expect(screen.getByText('Payload Claims')).toBeInTheDocument()
+    expect(screen.getByText(TEST_JWT.split('.')[0] ?? '')).toBeInTheDocument()
+  })
+
+  it('keeps big-number claim text exact when re-signing', async () => {
+    renderTool(JwtDecoder)
+    const header = '{"alg":"HS256","typ":"JWT"}'
+    const payload = '{"sub":12345678901234567890}'
+    const token = `${base64UrlText(header)}.${base64UrlText(payload)}.signature`
+    const tokenInput = screen.getByPlaceholderText(/paste a jwt/i) as HTMLTextAreaElement
+    fireEvent.change(tokenInput, { target: { value: token } })
+
+    const payloadEditor = screen.getByLabelText('Editable payload JSON') as HTMLTextAreaElement
+    expect(payloadEditor.value).toContain('12345678901234567890')
+    fireEvent.change(screen.getByPlaceholderText('your-256-bit-secret'), {
+      target: { value: 'topsecret' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Re-sign with secret' }))
+
+    await waitFor(() => expect(tokenInput.value).not.toBe(token))
+    const encodedPayload = tokenInput.value.split('.')[1] ?? ''
+    const base64 = encodedPayload.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')
+    const bytes = Uint8Array.from(atob(padded), (character) => character.charCodeAt(0))
+    expect(new TextDecoder().decode(bytes)).toBe(payload)
   })
 
   it('decodes UTF-8 claims without deprecated escape decoding', () => {

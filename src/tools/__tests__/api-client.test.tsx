@@ -9,11 +9,14 @@ import ApiClient from '@/tools/api-client/ApiClient'
 import {
   buildUrlWithParams,
   createDefaultDraft,
+  isValidRequestHostname,
+  normalizeRequestUrl,
   validateApiClientState,
   parseQueryParams,
   unresolvedVariableNames,
   type ApiClientState,
 } from '@/tools/api-client/request-model'
+import { isCanonicalFormBody } from '@/tools/api-client/form-body'
 import { CollectionsSidebar } from '@/tools/api-client/components/CollectionsSidebar'
 import { useFoldersStore } from '@/stores/folders.store'
 import { useToolStateCache } from '@/stores/tool-state.store'
@@ -39,6 +42,49 @@ function base64EncodeUtf8(text: string): string {
 }
 
 describe('api-client URL helpers', () => {
+  it.each([
+    ['httpbin.org/get', 'https://httpbin.org/get'],
+    ['localhost:3000/x', 'http://localhost:3000/x'],
+    ['127.0.0.1:8080', 'http://127.0.0.1:8080'],
+    ['127.1.2.3/x', 'http://127.1.2.3/x'],
+    ['127.1/x', 'https://127.1/x'],
+    ['127.example.com/path', 'https://127.example.com/path'],
+    ['[::1]:5173/a', 'http://[::1]:5173/a'],
+    ['[::]:5173/a', 'http://[::]:5173/a'],
+    ['127.42.10.9:8080', 'http://127.42.10.9:8080'],
+    ['localhost.:3000/x', 'http://localhost.:3000/x'],
+    ['api.localhost/x', 'http://api.localhost/x'],
+    ['http://my_api:8080/health', 'http://my_api:8080/health'],
+    ['HTTPS://Example.com', 'HTTPS://Example.com'],
+    ['  https://example.com/path  ', 'https://example.com/path'],
+  ])('normalizes %s to %s', (input, expected) => {
+    expect(normalizeRequestUrl(input)).toBe(expected)
+  })
+
+  it.each(['not a url', 'ftp://x', '', 'https:/example.com', 'HTTP:example.com'])(
+    'rejects invalid request URL %j',
+    (input) => {
+      expect(() => normalizeRequestUrl(input)).toThrow('Enter an http:// or https:// URL')
+    }
+  )
+
+  it.each([
+    ['not%20a%20url', false],
+    ['exa mple.com', false],
+    ['example.com', true],
+    ['my_api', true],
+    ['xn--bcher-kva.example', true],
+    ['[::1]', true],
+    ['127.0.0.1', true],
+  ])('validates browser-normalized hostname %s', (hostname, expected) => {
+    expect(isValidRequestHostname(hostname)).toBe(expected)
+  })
+
+  it('recognizes only canonical URL-encoded form bodies', () => {
+    expect(isCanonicalFormBody('a=1&b=2')).toBe(true)
+    expect(isCanonicalFormBody('{"name":"widget","qty":3}')).toBe(false)
+  })
+
   it('repairs malformed nested tool state', () => {
     const state = {
       activeRequestId: 10,
@@ -169,6 +215,70 @@ describe('ApiClient', () => {
     expect(screen.getByLabelText('Field 1 name')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Multipart' }))
     expect(screen.getByText(/Attached files are not saved/)).toBeInTheDocument()
+  })
+
+  it('restores a JSON body after editing a form body', () => {
+    renderTool(ApiClient)
+    fireEvent.change(screen.getByDisplayValue('GET'), { target: { value: 'POST' } })
+    fireEvent.click(screen.getByRole('tab', { name: 'Body' }))
+    const json = '{"name":"widget","qty":3}'
+    fireEvent.change(screen.getByTestId('monaco-editor'), { target: { value: json } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Form URL-encoded' }))
+    fireEvent.change(screen.getByLabelText('Field 1 name'), { target: { value: 'q' } })
+    fireEvent.click(screen.getByRole('button', { name: 'JSON' }))
+
+    expect(screen.getByTestId('monaco-editor')).toHaveValue(json)
+  })
+
+  it('keeps body-family stashes consistent across method changes', () => {
+    renderTool(ApiClient)
+    fireEvent.change(screen.getByDisplayValue('GET'), { target: { value: 'POST' } })
+    fireEvent.click(screen.getByRole('tab', { name: 'Body' }))
+    const json = '{"a":1}'
+    fireEvent.change(screen.getByTestId('monaco-editor'), { target: { value: json } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Form URL-encoded' }))
+    fireEvent.change(screen.getByLabelText('Field 1 name'), { target: { value: 'q' } })
+    fireEvent.change(screen.getByLabelText('Field 1 value'), { target: { value: 'x' } })
+    fireEvent.change(screen.getByDisplayValue('POST'), { target: { value: 'GET' } })
+    fireEvent.change(screen.getByDisplayValue('GET'), { target: { value: 'POST' } })
+
+    expect(screen.getByRole('button', { name: 'JSON' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('monaco-editor')).toHaveValue(json)
+    fireEvent.click(screen.getByRole('button', { name: 'Form URL-encoded' }))
+    expect(screen.getByLabelText('Field 1 name')).toHaveValue('q')
+    expect(screen.getByLabelText('Field 1 value')).toHaveValue('x')
+  })
+
+  it('restores a JSON body after switching through no body', () => {
+    renderTool(ApiClient)
+    fireEvent.change(screen.getByDisplayValue('GET'), { target: { value: 'POST' } })
+    fireEvent.click(screen.getByRole('tab', { name: 'Body' }))
+    const json = '{"name":"widget","qty":3}'
+    fireEvent.change(screen.getByTestId('monaco-editor'), { target: { value: json } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'None' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Form URL-encoded' }))
+    expect(screen.getByLabelText('Field 1 name')).toHaveValue('')
+    fireEvent.click(screen.getByRole('button', { name: 'JSON' }))
+
+    expect(screen.getByTestId('monaco-editor')).toHaveValue(json)
+  })
+
+  it('carries canonical text form data into the form editor', () => {
+    renderTool(ApiClient)
+    fireEvent.change(screen.getByDisplayValue('GET'), { target: { value: 'POST' } })
+    fireEvent.click(screen.getByRole('tab', { name: 'Body' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Text' }))
+    fireEvent.change(screen.getByTestId('monaco-editor'), { target: { value: 'a=1&b=2' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Form URL-encoded' }))
+
+    expect(screen.getByLabelText('Field 1 name')).toHaveValue('a')
+    expect(screen.getByLabelText('Field 1 value')).toHaveValue('1')
+    expect(screen.getByLabelText('Field 2 name')).toHaveValue('b')
+    expect(screen.getByLabelText('Field 2 value')).toHaveValue('2')
   })
 
   it('keeps repeated multipart file rows distinct and clears files on mode exit', async () => {
@@ -468,6 +578,30 @@ describe('ApiClient', () => {
     expect(screen.queryByRole('region', { name: 'Response' })).not.toBeInTheDocument()
   })
 
+  it('adds HTTPS when sending a URL without a scheme', async () => {
+    renderTool(ApiClient)
+    fireEvent.change(screen.getByPlaceholderText(/\{\{baseUrl\}\}\/endpoint/i), {
+      target: { value: 'httpbin.org/get' },
+    })
+
+    fireEvent.click(screen.getByText('Send'))
+
+    await waitFor(() => expect(tauriFetch).toHaveBeenCalledOnce())
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://httpbin.org/get')
+  })
+
+  it('shows an error without sending an invalid URL', async () => {
+    renderTool(ApiClient)
+    fireEvent.change(screen.getByPlaceholderText(/\{\{baseUrl\}\}\/endpoint/i), {
+      target: { value: 'not a url' },
+    })
+
+    fireEvent.click(screen.getByText('Send'))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Enter an http:// or https:// URL')
+    expect(tauriFetch).not.toHaveBeenCalled()
+  })
+
   it('releases the body of a response that declares an oversized length', async () => {
     const response = new Response('small', {
       headers: { 'content-length': String(51 * 1024 ** 2) },
@@ -532,6 +666,27 @@ describe('ApiClient', () => {
 
     await waitFor(() => expect(screen.getByText('Network down')).toBeInTheDocument())
     expect(screen.queryByDisplayValue('ok')).not.toBeInTheDocument()
+  })
+
+  it('keeps large integers in a formatted JSON response', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response('{"id":12345678901234567890}', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    renderTool(ApiClient)
+
+    fireEvent.change(screen.getByPlaceholderText(/\{\{baseUrl\}\}\/endpoint/i), {
+      target: { value: 'https://example.com' },
+    })
+    fireEvent.click(screen.getByText('Send'))
+
+    await waitFor(() => expect(tauriFetch).toHaveBeenCalledOnce())
+    await waitFor(() =>
+      expect(screen.getByRole('region', { name: 'Response' })).toBeInTheDocument()
+    )
+    expect(screen.getByTestId('monaco-editor')).toHaveValue('{\n  "id": 12345678901234567890\n}')
   })
 
   it('announces a request error via role="alert"', async () => {

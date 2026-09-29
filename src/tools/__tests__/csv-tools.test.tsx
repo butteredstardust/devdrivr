@@ -16,6 +16,7 @@ import { renderTool } from '@/tools/__tests__/test-utils'
 import { dispatchToolAction, supportsToolFileAction } from '@/lib/tool-actions'
 import { saveFileDialog } from '@/lib/file-io'
 import { useUiStore } from '@/stores/ui.store'
+import { exactNumber } from '@/lib/lossless-json'
 
 const recordMock = vi.hoisted(() => vi.fn())
 
@@ -73,6 +74,31 @@ describe('csv-helpers', () => {
     if (result.status === 'parsed') expect(result.rows[1]).toEqual({ name: 'Bob', age: null })
   })
 
+  it('keeps unsafe JSON integers as exact text', () => {
+    const result = parseJsonRows('[{"id":12345678901234567890}]')
+
+    expect(result.status).toBe('parsed')
+    if (result.status !== 'parsed') return
+    expect(result.rows[0]?.id).toBe('12345678901234567890')
+    expect(toOutput(result.columns, result.rows, 'tsv')).toContain('12345678901234567890')
+    expect(summarizeColumns(result.columns, result.rows)[0]).toMatchObject({
+      type: 'string',
+      numeric: null,
+    })
+  })
+
+  it('infers exact numeric strings without rounding unsafe values', () => {
+    const summaries = summarizeColumns(
+      ['value'],
+      ['42', '12345678901234567890'].map((value) => ({ value }))
+    )
+
+    expect(summaries[0]).toMatchObject({
+      type: 'mixed',
+      numeric: { min: 42, max: 42, mean: 42, median: 42, sum: 42 },
+    })
+  })
+
   it('keeps the extra fields of a ragged row instead of dropping them', () => {
     const result = parseCsv('a,b\n1,2,3', parseOptions)
 
@@ -128,6 +154,44 @@ describe('csv-helpers', () => {
     // Even with typing on, a leading zero is a code, not a number to be shortened.
     expect(typed.status === 'parsed' && typed.rows[0]?.zip).toBe('007')
     expect(typed.status === 'parsed' && typed.rows[0]?.n).toBe(1)
+  })
+
+  it('coerces only exact numeric CSV cells', () => {
+    const result = parseCsv('small,code,big,decimal\n42,007,12345678901234567890,0.1', {
+      ...parseOptions,
+      typed: true,
+    })
+
+    expect(result.status).toBe('parsed')
+    if (result.status !== 'parsed') return
+    expect(result.rows[0]).toEqual({
+      small: 42,
+      code: '007',
+      big: '12345678901234567890',
+      decimal: 0.1,
+    })
+  })
+
+  it('renders nested JSON cells as JSON text', () => {
+    const result = parseJsonRows('[{"tags":["a","b"],"meta":{"x":1}}]')
+
+    expect(result.status).toBe('parsed')
+    if (result.status !== 'parsed') return
+    expect(toOutput(result.columns, result.rows, 'tsv')).toContain('["a","b"]\t{"x":1}')
+    expect(toOutput(result.columns, result.rows, 'markdown')).toContain('| ["a","b"] | {"x":1} |')
+    expect(toOutput(result.columns, result.rows, 'sql')).toContain(
+      `VALUES ('["a","b"]', '{"x":1}');`
+    )
+  })
+
+  it.each([
+    ['9007199254740991', 9007199254740991],
+    ['9007199254740993', null],
+    ['1e400', null],
+    ['0.1234567890123456789', null],
+    ['1.5', 1.5],
+  ])('classifies exact number %s', (raw, expected) => {
+    expect(exactNumber(raw)).toBe(expected)
   })
 
   it('converts to each output format', () => {

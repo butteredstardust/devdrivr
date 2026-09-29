@@ -4,6 +4,7 @@
  * on the worker thread and in-process under Vitest.
  */
 import { createTwoFilesPatch } from 'diff'
+import { reformatJson } from '@/lib/lossless-json'
 
 export type DiffOptions = {
   ignoreWhitespace?: boolean
@@ -17,8 +18,8 @@ export function computeDiff(left: string, right: string, options: DiffOptions = 
 
   if (options.jsonMode) {
     try {
-      a = JSON.stringify(JSON.parse(a), null, 2)
-      b = JSON.stringify(JSON.parse(b), null, 2)
+      a = reformatJson(a, { indent: 2 })
+      b = reformatJson(b, { indent: 2 })
     } catch {
       // If not valid JSON, diff as-is
     }

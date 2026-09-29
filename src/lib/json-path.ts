@@ -190,6 +190,10 @@ export function queryJsonPath(data: unknown, path: string): JsonPathResult {
   if (path.trim() === '$') return { found: true, value: data }
   const segments = parsePath(path)
   if (segments.length === 0) return { found: false }
+  const isDefinite = segments.every(
+    (segment) =>
+      segment.kind === 'child' || (segment.kind === 'indices' && segment.keys.length === 1)
+  )
   let current: unknown[] = [data]
   for (const segment of segments) {
     const next: unknown[] = []
@@ -239,5 +243,5 @@ export function queryJsonPath(data: unknown, path: string): JsonPathResult {
     current = next
   }
   if (current.length === 0) return { found: false }
-  return { found: true, value: current.length === 1 ? current[0] : current }
+  return { found: true, value: isDefinite ? current[0] : current }
 }

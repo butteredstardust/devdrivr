@@ -8,6 +8,48 @@ import ColorConverter, {
   rgbToLab,
 } from '../color-converter/ColorConverter'
 import { FormatsSection } from '../color-converter/components/FormatsSection'
+import { parseColor, rgbToHex } from '../color-converter/color-model'
+
+function parseHex(input: string): string {
+  const color = parseColor(input)
+  if (!color) throw new Error(`Expected ${input} to parse`)
+  return rgbToHex(color)
+}
+
+describe('color parsing', () => {
+  it('uses the OKLCH lightness unit and rejects trailing input', () => {
+    expect(parseColor('oklch(1% 0 0)')).toEqual({ r: 0, g: 0, b: 0, a: 1 })
+    expect(parseColor('oklch(0.5% 0 0)')).toEqual({ r: 0, g: 0, b: 0, a: 1 })
+    expect(parseHex('oklch(0.5 0 0)')).toBe('#636363')
+    expect(parseColor('oklch(0.5 0.1 30) banana')).toBeNull()
+  })
+
+  it('parses OKLCH alpha, hue, and percentage chroma', () => {
+    expect(parseColor('oklch(62.8% 0.2577 29.23 / 0.5)')?.a).toBe(0.5)
+    expect(parseColor('oklch(62.8% 0.2577 -30deg / 25%)')?.a).toBe(0.25)
+    expect(parseColor('oklch(0.6 100% 0)')).toEqual(parseColor('oklch(0.6 0.4 0)'))
+    expect(parseColor('oklch(0.6 0.1 30 / 101%)')).toBeNull()
+  })
+
+  it('parses decimal and percentage RGB channels', () => {
+    expect(parseColor('rgb(12.5 0 0)')).toEqual({ r: 13, g: 0, b: 0, a: 1 })
+    expect(parseColor('rgb(10%, 20%, 30%)')).toEqual({ r: 26, g: 51, b: 77, a: 1 })
+    expect(parseHex('rgb(10%, 20%, 30%)')).toBe('#1a334d')
+    expect(parseColor('rgb(10% 20 30%)')).toBeNull()
+    expect(parseColor('rgb(100.1% 0% 0%)')).toBeNull()
+  })
+
+  it('converts all CSS hue units to degrees', () => {
+    expect(parseHex('hsl(0.5turn 100% 50%)')).toBe('#00ffff')
+    expect(parseHex('hsl(200grad 100% 50%)')).toBe('#00ffff')
+    expect(parseHex('hsl(3.141592653589793rad 100% 50%)')).toBe('#00ffff')
+    expect(parseHex('hsl(180deg 100% 50%)')).toBe('#00ffff')
+  })
+
+  it('parses transparent as clear black', () => {
+    expect(parseColor('transparent')).toEqual({ r: 0, g: 0, b: 0, a: 0 })
+  })
+})
 
 describe('ColorConverter', () => {
   it('converts sRGB to CIE LAB and LCH', () => {
