@@ -12,6 +12,7 @@ import {
   BODY_METHODS,
   DEFAULT_TIMEOUT_MS,
   interpolate,
+  normalizeRequestUrl,
   unresolvedVariableNames,
   type CollectionRun,
 } from '@/tools/api-client/request-model'
@@ -132,7 +133,8 @@ export function useCollectionRun(envVars: Record<string, string>, timeoutMs: num
             const implied = contentTypeFor(request.bodyMode)
             if (implied && !hasContentType) requestHeaders['Content-Type'] = implied
           }
-          const result = await tauriFetch(interpolate(request.url, envVars), options)
+          const requestUrl = normalizeRequestUrl(interpolate(request.url, envVars))
+          const result = await tauriFetch(requestUrl, options)
           const elapsed = Math.round(performance.now() - started)
           // The run needs only the status. Cancel the body, because the HTTP plugin keeps an
           // unread body open on the Rust side until the app quits.

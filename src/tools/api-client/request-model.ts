@@ -182,6 +182,37 @@ export function interpolate(text: string, vars: Record<string, string>): string 
   })
 }
 
+export function normalizeRequestUrl(url: string): string {
+  const trimmed = url.trim()
+  const error = new Error('Enter an http:// or https:// URL')
+  if (!trimmed) throw error
+
+  const hasScheme = /^[a-z][a-z\d+.-]*:\/\//i.test(trimmed)
+  if (hasScheme) {
+    try {
+      const parsed = new URL(trimmed)
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw error
+      return trimmed
+    } catch {
+      throw error
+    }
+  }
+
+  try {
+    const parsed = new URL(`https://${trimmed}`)
+    const hostname = parsed.hostname.toLowerCase()
+    const local =
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '0.0.0.0' ||
+      hostname === '[::1]' ||
+      hostname.endsWith('.localhost')
+    return `${local ? 'http' : 'https'}://${trimmed}`
+  } catch {
+    throw error
+  }
+}
+
 export function unresolvedVariableNames(values: string[], vars: Record<string, string>): string[] {
   const names = new Set<string>()
   for (const value of values) {
