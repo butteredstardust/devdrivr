@@ -6,4 +6,13 @@ describe('diff api', () => {
     expect(computeDiff('Hello', 'hello', { ignoreCase: true })).not.toContain('-Hello')
     expect(computeDiff('Hello', 'hello')).toContain('-Hello')
   })
+
+  it('distinguishes large JSON integers in JSON mode', () => {
+    const patch = computeDiff('{"id":12345678901234567890}', '{"id":12345678901234567891}', {
+      jsonMode: true,
+    })
+
+    expect(patch).toContain('-  "id": 12345678901234567890')
+    expect(patch).toContain('+  "id": 12345678901234567891')
+  })
 })

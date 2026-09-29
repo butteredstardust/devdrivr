@@ -9,6 +9,7 @@ import ApiClient from '@/tools/api-client/ApiClient'
 import {
   buildUrlWithParams,
   createDefaultDraft,
+  isValidRequestHostname,
   normalizeRequestUrl,
   validateApiClientState,
   parseQueryParams,
@@ -55,6 +56,17 @@ describe('api-client URL helpers', () => {
 
   it.each(['not a url', 'ftp://x', ''])('rejects invalid request URL %j', (input) => {
     expect(() => normalizeRequestUrl(input)).toThrow('Enter an http:// or https:// URL')
+  })
+
+  it.each([
+    ['not%20a%20url', false],
+    ['exa mple.com', false],
+    ['example.com', true],
+    ['xn--bcher-kva.example', true],
+    ['[::1]', true],
+    ['127.0.0.1', true],
+  ])('validates browser-normalized hostname %s', (hostname, expected) => {
+    expect(isValidRequestHostname(hostname)).toBe(expected)
   })
 
   it('recognizes only canonical URL-encoded form bodies', () => {
@@ -623,6 +635,27 @@ describe('ApiClient', () => {
 
     await waitFor(() => expect(screen.getByText('Network down')).toBeInTheDocument())
     expect(screen.queryByDisplayValue('ok')).not.toBeInTheDocument()
+  })
+
+  it('keeps large integers in a formatted JSON response', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response('{"id":12345678901234567890}', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    )
+    renderTool(ApiClient)
+
+    fireEvent.change(screen.getByPlaceholderText(/\{\{baseUrl\}\}\/endpoint/i), {
+      target: { value: 'https://example.com' },
+    })
+    fireEvent.click(screen.getByText('Send'))
+
+    await waitFor(() => expect(tauriFetch).toHaveBeenCalledOnce())
+    await waitFor(() =>
+      expect(screen.getByRole('region', { name: 'Response' })).toBeInTheDocument()
+    )
+    expect(screen.getByTestId('monaco-editor')).toHaveValue('{\n  "id": 12345678901234567890\n}')
   })
 
   it('announces a request error via role="alert"', async () => {

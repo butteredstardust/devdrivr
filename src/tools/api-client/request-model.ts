@@ -182,6 +182,10 @@ export function interpolate(text: string, vars: Record<string, string>): string 
   })
 }
 
+export function isValidRequestHostname(hostname: string): boolean {
+  return /^\[[0-9a-f:.]+\]$/i.test(hostname) || /^[a-z\d.-]+$/i.test(hostname)
+}
+
 export function normalizeRequestUrl(url: string): string {
   const trimmed = url.trim()
   const error = new Error('Enter an http:// or https:// URL')
@@ -192,6 +196,7 @@ export function normalizeRequestUrl(url: string): string {
     try {
       const parsed = new URL(trimmed)
       if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw error
+      if (!isValidRequestHostname(parsed.hostname)) throw error
       return trimmed
     } catch {
       throw error
@@ -200,6 +205,7 @@ export function normalizeRequestUrl(url: string): string {
 
   try {
     const parsed = new URL(`https://${trimmed}`)
+    if (!isValidRequestHostname(parsed.hostname)) throw error
     const hostname = parsed.hostname.toLowerCase()
     const local =
       hostname === 'localhost' ||

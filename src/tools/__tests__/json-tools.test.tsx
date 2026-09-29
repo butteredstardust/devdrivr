@@ -160,6 +160,18 @@ describe('JsonTools', () => {
     expect(editor()).toHaveValue('{"a":2,"b":1}')
   })
 
+  it('keeps large integers when minifying and sorting keys', () => {
+    renderTool(JsonTools)
+    typeJson('{\n  "z": 12345678901234567890,\n  "a": 1\n}')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Minify' }))
+    expect(editor()).toHaveValue('{"z":12345678901234567890,"a":1}')
+
+    typeJson('{"z":12345678901234567890,"a":1}')
+    fireEvent.click(screen.getByRole('button', { name: /Sort keys/ }))
+    expect(editor()).toHaveValue('{\n  "a": 1,\n  "z": 12345678901234567890\n}')
+  })
+
   it('runs a path query and separates a null hit from a miss', () => {
     renderTool(JsonTools)
     typeJson('{"a": {"b": null}}')

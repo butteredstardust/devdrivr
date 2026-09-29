@@ -36,7 +36,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
-import { sortKeysDeepBounded } from '@/lib/traversal'
+import { reformatJson } from '@/lib/lossless-json'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { formatShortcut } from '@/lib/shortcut-label'
 import { Toggle } from '@/components/shared/Toggle'
@@ -190,22 +190,24 @@ export default function JsonTools() {
   const handleMinify = useCallback(() => {
     if (!isValid) return
     setUndoBuffer({ input, label: 'Minify' })
-    const output = JSON.stringify(data)
+    const source = state.allowComments ? normalizeJsonc(input) : input
+    const output = reformatJson(source, { indent: 0 })
     updateState({ input: output })
     setError(null)
     setLastAction('Minified JSON', 'success')
     recordRun(output)
-  }, [isValid, data, input, updateState, setLastAction, recordRun])
+  }, [isValid, input, state.allowComments, updateState, setLastAction, recordRun])
 
   const handleSortKeys = useCallback(() => {
     if (!isValid) return
     setUndoBuffer({ input, label: 'Sort keys' })
-    const output = JSON.stringify(sortKeysDeepBounded(data), null, indent)
+    const source = state.allowComments ? normalizeJsonc(input) : input
+    const output = reformatJson(source, { indent, sortKeys: true })
     updateState({ input: output })
     setError(null)
     setLastAction('Keys sorted', 'success')
     recordRun(output)
-  }, [isValid, data, indent, input, updateState, setLastAction, recordRun])
+  }, [isValid, indent, input, state.allowComments, updateState, setLastAction, recordRun])
 
   const handleUndo = useCallback(() => {
     if (!undoBuffer) return

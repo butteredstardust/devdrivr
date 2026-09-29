@@ -6,6 +6,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { buildExportFilename, exportFile } from '@/lib/file-io'
 import { formatBytes } from '@/lib/format'
+import { reformatJson } from '@/lib/lossless-json'
 import {
   buildMultipartBody,
   contentTypeFor,
@@ -320,7 +321,7 @@ export function useRequestTransport({
     if (!response?.body) return ''
     if (responseLanguage === 'json' && !response.displayTruncated) {
       try {
-        return JSON.stringify(JSON.parse(response.body), null, 2)
+        return reformatJson(response.body, { indent: 2 })
       } catch {
         return response.body
       }
