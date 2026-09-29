@@ -30,22 +30,64 @@ type TimestampState = {
    */
   zone: string
   /**
-   * How a bare number is read. `auto` uses the magnitude heuristic, which cannot tell a
-   * pre-2001 millisecond epoch from a far-future second epoch — the explicit modes exist so
-   * negative and historical epochs can be entered unambiguously.
+   * How a bare number is read. `auto` treats magnitudes below 1e12 as seconds, below 1e15 as
+   * milliseconds, below 1e18 as microseconds, and all larger values as nanoseconds. The explicit
+   * modes handle negative, historical, and otherwise ambiguous epochs.
    */
   epochUnit: EpochUnit
 }
 
-type EpochUnit = 'auto' | 'seconds' | 'milliseconds'
+type EpochUnit = 'auto' | 'seconds' | 'milliseconds' | 'microseconds' | 'nanoseconds'
+
+const EPOCH_UNITS: ReadonlySet<string> = new Set([
+  'auto',
+  'seconds',
+  'milliseconds',
+  'microseconds',
+  'nanoseconds',
+])
 
 // ── Helpers ────────────────────────────────────────────────────────
 
 function epochToMs(num: number, unit: EpochUnit): number {
   if (unit === 'seconds') return num * 1000
   if (unit === 'milliseconds') return num
-  // `auto`: values whose absolute magnitude is below the millisecond threshold read as seconds.
-  return Math.abs(num) < 1e12 ? num * 1000 : num
+  if (unit === 'microseconds') return num / 1000
+  if (unit === 'nanoseconds') return num / 1_000_000
+  const magnitude = Math.abs(num)
+  if (magnitude < 1e12) return num * 1000
+  if (magnitude < 1e15) return num
+  if (magnitude < 1e18) return num / 1000
+  return num / 1_000_000
+}
+
+function floorDivide(value: bigint, divisor: bigint): bigint {
+  const quotient = value / divisor
+  return value < 0n && value % divisor !== 0n ? quotient - 1n : quotient
+}
+
+function integerEpochToMs(raw: string, unit: EpochUnit): number {
+  const value = BigInt(raw)
+  let resolvedUnit = unit
+  if (unit === 'auto') {
+    const magnitude = value < 0n ? -value : value
+    resolvedUnit =
+      magnitude < 1_000_000_000_000n
+        ? 'seconds'
+        : magnitude < 1_000_000_000_000_000n
+          ? 'milliseconds'
+          : magnitude < 1_000_000_000_000_000_000n
+            ? 'microseconds'
+            : 'nanoseconds'
+  }
+
+  if (resolvedUnit === 'seconds') return Number(value * 1000n)
+  if (resolvedUnit === 'milliseconds') return Number(value)
+  return Number(floorDivide(value, resolvedUnit === 'microseconds' ? 1000n : 1_000_000n))
+}
+
+function validateTimestampState(state: TimestampState): TimestampState {
+  return EPOCH_UNITS.has(state.epochUnit) ? state : { ...state, epochUnit: 'auto' }
 }
 
 function parseInput(input: string, epochUnit: EpochUnit = 'auto'): Date | null {
@@ -64,9 +106,10 @@ function parseInput(input: string, epochUnit: EpochUnit = 'auto'): Date | null {
     }
     return null
   }
+  const integer = /^-?\d+$/.test(trimmed)
   const num = Number(trimmed)
   if (!isNaN(num) && isFinite(num)) {
-    const ms = epochToMs(num, epochUnit)
+    const ms = integer ? integerEpochToMs(trimmed, epochUnit) : epochToMs(num, epochUnit)
     const d = new Date(ms)
     if (!isNaN(d.getTime())) return d
   }
@@ -110,11 +153,15 @@ const PRESETS: Preset[] = [
 
 export default function TimestampConverter() {
   const configuredTimezone = useSettingsStore.getState().defaultTimezone
-  const [state, updateState] = useToolState<TimestampState>('timestamp-converter', {
-    input: '',
-    zone: isTimezone(configuredTimezone) ? configuredTimezone : LOCAL_ZONE,
-    epochUnit: 'auto',
-  })
+  const [state, updateState] = useToolState<TimestampState>(
+    'timestamp-converter',
+    {
+      input: '',
+      zone: isTimezone(configuredTimezone) ? configuredTimezone : LOCAL_ZONE,
+      epochUnit: 'auto',
+    },
+    { validate: validateTimestampState }
+  )
   const zone = state.zone === LOCAL_ZONE || isTimezone(state.zone) ? state.zone : LOCAL_ZONE
   // Enumerated once. `Intl.supportedValuesOf('timeZone')` returns ~400 strings and the list cannot
   // change while the app is running.
@@ -146,7 +193,12 @@ export default function TimestampConverter() {
   const writeEpoch = useCallback(
     // Truncate rather than round. Rounding pulls the last millisecond of a day up to the next
     // day, which lands the "End of day" preset on the wrong date.
-    (ms: number) => String(state.epochUnit === 'seconds' ? Math.floor(ms / 1000) : ms),
+    (ms: number) => {
+      if (state.epochUnit === 'seconds') return String(Math.floor(ms / 1000))
+      if (state.epochUnit === 'microseconds') return String(BigInt(ms) * 1000n)
+      if (state.epochUnit === 'nanoseconds') return String(BigInt(ms) * 1_000_000n)
+      return String(ms)
+    },
     [state.epochUnit]
   )
 
@@ -212,6 +264,8 @@ export default function TimestampConverter() {
               <option value="auto">Auto detect</option>
               <option value="seconds">Seconds</option>
               <option value="milliseconds">Milliseconds</option>
+              <option value="microseconds">Microseconds</option>
+              <option value="nanoseconds">Nanoseconds</option>
             </Select>
             {/* A native select: ~400 zones with OS type-ahead beats anything hand-rolled, and the
                 two entries above the separator cover the cases that aren't a lookup. */}

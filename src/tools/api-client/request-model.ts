@@ -183,7 +183,7 @@ export function interpolate(text: string, vars: Record<string, string>): string 
 }
 
 export function isValidRequestHostname(hostname: string): boolean {
-  return /^\[[0-9a-f:.]+\]$/i.test(hostname) || /^[a-z\d.-]+$/i.test(hostname)
+  return /^\[[0-9a-f:.]+\]$/i.test(hostname) || /^[a-z\d._-]+$/i.test(hostname)
 }
 
 export function normalizeRequestUrl(url: string): string {

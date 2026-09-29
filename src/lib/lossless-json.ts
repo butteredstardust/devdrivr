@@ -10,6 +10,25 @@ class JsonObject {
 
 type JsonValue = null | boolean | string | JsonNumber | JsonObject | JsonValue[]
 
+export function exactNumber(raw: string): number | null {
+  if (/^-?(?:0|[1-9]\d*)$/.test(raw)) {
+    const value = Number(raw)
+    return Number.isSafeInteger(value) ? value : null
+  }
+
+  if (
+    !/^-?(?:0|[1-9]\d*)\.\d+(?:[eE][+-]?\d+)?$/.test(raw) &&
+    !/^-?(?:0|[1-9]\d*)[eE][+-]?\d+$/.test(raw)
+  ) {
+    return null
+  }
+
+  const significand = raw.split(/[eE]/, 1)[0]?.replace('-', '').replace('.', '') ?? ''
+  const significantDigits = significand.replace(/^0+/, '').length || 1
+  const value = Number(raw)
+  return significantDigits <= 15 && Number.isFinite(value) ? value : null
+}
+
 class LosslessJsonParser {
   private index = 0
 
@@ -161,6 +180,20 @@ function serialize(value: JsonValue, gap: string, sortKeys: boolean, depth: numb
   })
   if (!gap) return `{${fields.join(',')}}`
   return `{\n${childIndent}${fields.join(`,\n${childIndent}`)}\n${currentIndent}}`
+}
+
+function toPlainValue(value: JsonValue): unknown {
+  if (value instanceof JsonNumber) return exactNumber(value.raw) ?? value.raw
+  if (Array.isArray(value)) return value.map(toPlainValue)
+  if (value instanceof JsonObject) {
+    return Object.fromEntries([...value.entries].map(([key, item]) => [key, toPlainValue(item)]))
+  }
+  return value
+}
+
+export function parseLosslessJson(text: string): unknown {
+  JSON.parse(text)
+  return toPlainValue(new LosslessJsonParser(text).parse())
 }
 
 export function reformatJson(

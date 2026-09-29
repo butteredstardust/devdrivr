@@ -48,6 +48,7 @@ describe('api-client URL helpers', () => {
     ['127.0.0.1:8080', 'http://127.0.0.1:8080'],
     ['[::1]:5173/a', 'http://[::1]:5173/a'],
     ['api.localhost/x', 'http://api.localhost/x'],
+    ['http://my_api:8080/health', 'http://my_api:8080/health'],
     ['HTTPS://Example.com', 'HTTPS://Example.com'],
     ['  https://example.com/path  ', 'https://example.com/path'],
   ])('normalizes %s to %s', (input, expected) => {
@@ -62,6 +63,7 @@ describe('api-client URL helpers', () => {
     ['not%20a%20url', false],
     ['exa mple.com', false],
     ['example.com', true],
+    ['my_api', true],
     ['xn--bcher-kva.example', true],
     ['[::1]', true],
     ['127.0.0.1', true],
