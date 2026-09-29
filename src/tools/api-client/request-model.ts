@@ -186,6 +186,23 @@ export function isValidRequestHostname(hostname: string): boolean {
   return /^\[[0-9a-f:.]+\]$/i.test(hostname) || /^[a-z\d._-]+$/i.test(hostname)
 }
 
+function isIpv4Loopback(hostname: string): boolean {
+  const octets = hostname.split('.')
+  return (
+    octets.length === 4 &&
+    octets.every((octet) => /^\d+$/.test(octet) && Number(octet) <= 255) &&
+    octets[0] === '127'
+  )
+}
+
+function hostnameLiteral(url: string): string {
+  const authorityEnd = url.search(/[/?#]/)
+  const authority = authorityEnd === -1 ? url : url.slice(0, authorityEnd)
+  const hostAndPort = authority.slice(authority.lastIndexOf('@') + 1)
+  if (hostAndPort.startsWith('[')) return hostAndPort.slice(0, hostAndPort.indexOf(']') + 1)
+  return hostAndPort.replace(/:\d*$/, '')
+}
+
 export function normalizeRequestUrl(url: string): string {
   const trimmed = url.trim()
   const error = new Error('Enter an http:// or https:// URL')
@@ -209,9 +226,10 @@ export function normalizeRequestUrl(url: string): string {
     if (!isValidRequestHostname(parsed.hostname)) throw error
     const hostname = parsed.hostname.toLowerCase()
     const localHostname = hostname.endsWith('.') ? hostname.slice(0, -1) : hostname
+    const literalHostname = hostnameLiteral(trimmed).replace(/\.$/, '')
     const local =
       localHostname === 'localhost' ||
-      /^127\./.test(localHostname) ||
+      isIpv4Loopback(literalHostname) ||
       localHostname === '0.0.0.0' ||
       localHostname === '[::]' ||
       localHostname === '[::1]' ||

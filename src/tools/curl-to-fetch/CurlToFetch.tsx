@@ -114,6 +114,13 @@ function encodeBasicCredentials(credentials: string): string {
   return btoa(binary)
 }
 
+function encodeCurlComponent(value: string): string {
+  return encodeURIComponent(value).replace(
+    /[!'()*]/g,
+    (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`
+  )
+}
+
 // ── Parser ─────────────────────────────────────────────────────────
 
 type CurlParseResult = { parsed: ParsedCurl | null; error: string | null }
@@ -206,7 +213,8 @@ function parseCurl(input: string): CurlParseResult {
   const trimmed = input.trim()
   if (!trimmed.startsWith('curl')) return { parsed: null, error: 'Command must start with curl' }
 
-  let method = 'GET'
+  let explicitMethod: string | null = null
+  let headRequested = false
   const headers: Record<string, string> = {}
   const bodyParts: string[] = []
   let url = ''
@@ -237,7 +245,7 @@ function parseCurl(input: string): CurlParseResult {
     if (token === 'curl') continue
 
     if (token === '-X' || token === '--request') {
-      method = takeValue().toUpperCase() || 'GET'
+      explicitMethod = takeValue().toUpperCase() || 'GET'
     } else if (token === '-H' || token === '--header') {
       const header = takeValue()
       const colonIdx = header.indexOf(':')
@@ -259,7 +267,6 @@ function parseCurl(input: string): CurlParseResult {
         }
       }
       bodyParts.push(data)
-      if (method === 'GET') method = 'POST'
     } else if (token === '--data-urlencode') {
       const data = takeValue()
       const equalsIndex = data.indexOf('=')
@@ -272,10 +279,9 @@ function parseCurl(input: string): CurlParseResult {
       }
       bodyParts.push(
         equalsIndex > 0
-          ? `${data.slice(0, equalsIndex)}=${encodeURIComponent(data.slice(equalsIndex + 1))}`
-          : encodeURIComponent(equalsIndex === 0 ? data.slice(1) : data)
+          ? `${data.slice(0, equalsIndex)}=${encodeCurlComponent(data.slice(equalsIndex + 1))}`
+          : encodeCurlComponent(equalsIndex === 0 ? data.slice(1) : data)
       )
-      if (method === 'GET') method = 'POST'
     } else if (token === '--json') {
       const data = takeValue()
       if (data.startsWith('@')) {
@@ -286,7 +292,12 @@ function parseCurl(input: string): CurlParseResult {
       }
       bodyParts.push(data)
       jsonBody = true
-      if (method === 'GET') method = 'POST'
+    } else if (token === '-T' || token === '--upload-file') {
+      const data = takeValue()
+      return {
+        parsed: null,
+        error: `File-backed request bodies (${data}) are not read for safety; paste the file contents instead.`,
+      }
     } else if (token === '-F' || token === '--form' || token === '--form-string') {
       takeValue()
       return {
@@ -302,7 +313,7 @@ function parseCurl(input: string): CurlParseResult {
       const candidate = takeValue()
       if (!url) url = candidate
     } else if (token === '-I' || token === '--head') {
-      method = 'HEAD'
+      headRequested = true
     } else if (token === '-G' || token === '--get') {
       useQuery = true
     } else if (token === '--compressed') {
@@ -326,8 +337,9 @@ function parseCurl(input: string): CurlParseResult {
       url = `${base}${base.includes('?') ? '&' : '?'}${body}${hash}`
     }
     body = null
-    method = 'GET'
   }
+
+  const method = explicitMethod ?? (headRequested ? 'HEAD' : body === null ? 'GET' : 'POST')
 
   const hasHeader = (name: string) =>
     Object.keys(headers).some((headerName) => headerName.toLowerCase() === name.toLowerCase())
@@ -373,9 +385,15 @@ function toFetch(p: ParsedCurl): string {
     opts.push('  },')
   }
   if (p.body !== null) opts.push(`  body: ${jsStringLiteral(p.body)},`)
-  if (opts.length === 0)
-    return `const response = await fetch(${jsStringLiteral(p.url)})\nconst data = await response.json()`
-  return `const response = await fetch(${jsStringLiteral(p.url)}, {\n${opts.join('\n')}\n})\nconst data = await response.json()`
+  const request =
+    opts.length === 0
+      ? `fetch(${jsStringLiteral(p.url)})`
+      : `fetch(${jsStringLiteral(p.url)}, {\n${opts.join('\n')}\n})`
+  const result =
+    p.method === 'HEAD'
+      ? `console.log(response.status, Object.fromEntries(response.headers))`
+      : `const data = await response.json()`
+  return `const response = await ${request}\n${result}`
 }
 
 function toAxios(p: ParsedCurl): string {
@@ -403,12 +421,20 @@ function toKy(p: ParsedCurl): string {
   }
   if (p.body !== null) opts.push(`  body: ${jsStringLiteral(p.body)},`)
   const m = p.method.toLowerCase()
+  let request: string
   if (!['get', 'post', 'put', 'patch', 'head', 'delete'].includes(m)) {
     opts.unshift(`  method: ${jsStringLiteral(p.method)},`)
-    return `const data = await ky(${jsStringLiteral(p.url)}, {\n${opts.join('\n')}\n}).json()`
+    request = `ky(${jsStringLiteral(p.url)}, {\n${opts.join('\n')}\n})`
+  } else {
+    request =
+      opts.length === 0
+        ? `ky.${m}(${jsStringLiteral(p.url)})`
+        : `ky.${m}(${jsStringLiteral(p.url)}, {\n${opts.join('\n')}\n})`
   }
-  if (opts.length === 0) return `const data = await ky.${m}(${jsStringLiteral(p.url)}).json()`
-  return `const data = await ky.${m}(${jsStringLiteral(p.url)}, {\n${opts.join('\n')}\n}).json()`
+  if (p.method === 'HEAD') {
+    return `const response = await ${request}\nconsole.log(response.status, Object.fromEntries(response.headers))`
+  }
+  return `const data = await ${request}.json()`
 }
 
 function toXhr(p: ParsedCurl): string {
@@ -419,12 +445,20 @@ function toXhr(p: ParsedCurl): string {
   for (const [k, v] of Object.entries(p.headers)) {
     lines.push(`xhr.setRequestHeader(${jsStringLiteral(k)}, ${jsStringLiteral(v)})`)
   }
-  lines.push(
-    `xhr.onload = () => {`,
-    `  const data = JSON.parse(xhr.responseText)`,
-    `  console.log(data)`,
-    `}`
-  )
+  if (p.method === 'HEAD') {
+    lines.push(
+      `xhr.onload = () => {`,
+      `  console.log(xhr.status, xhr.getAllResponseHeaders())`,
+      `}`
+    )
+  } else {
+    lines.push(
+      `xhr.onload = () => {`,
+      `  const data = JSON.parse(xhr.responseText)`,
+      `  console.log(data)`,
+      `}`
+    )
+  }
   lines.push(p.body !== null ? `xhr.send(${jsStringLiteral(p.body)})` : `xhr.send()`)
   return lines.join('\n')
 }
@@ -457,9 +491,13 @@ function toNodeHttp(p: ParsedCurl): string {
   lines.push(`}`)
   lines.push(``)
   lines.push(`const req = ${mod}.request(options, (res) => {`)
-  lines.push(`  let data = ''`)
-  lines.push(`  res.on('data', (chunk) => { data += chunk })`)
-  lines.push(`  res.on('end', () => console.log(JSON.parse(data)))`)
+  if (p.method === 'HEAD') {
+    lines.push(`  console.log(res.statusCode, res.headers)`)
+  } else {
+    lines.push(`  let data = ''`)
+    lines.push(`  res.on('data', (chunk) => { data += chunk })`)
+    lines.push(`  res.on('end', () => console.log(JSON.parse(data)))`)
+  }
   lines.push(`})`)
   if (p.body !== null) lines.push(`req.write(body)`)
   lines.push(`req.end()`)

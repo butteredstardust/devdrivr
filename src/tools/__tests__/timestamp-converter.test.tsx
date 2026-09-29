@@ -192,6 +192,24 @@ describe('TimestampConverter', () => {
     expect(screen.getByText(expected)).toBeInTheDocument()
   })
 
+  it.each([
+    ['microseconds', '9007199254740999', '9007199254740999.0', 9_007_199_254_740],
+    ['nanoseconds', '9007199254740999999', '9007199254740999999.0', 9_007_199_254_740],
+  ])(
+    'parses large plain decimal %s epochs without Number rounding',
+    (unit, integer, decimal, ms) => {
+      renderTool(TimestampConverter)
+      fireEvent.change(screen.getByLabelText('Numeric input unit'), { target: { value: unit } })
+      const input = screen.getByLabelText('Timestamp or date to convert')
+      const expected = new Date(ms).toISOString()
+
+      fireEvent.change(input, { target: { value: integer } })
+      expect(screen.getByText(expected)).toBeInTheDocument()
+      fireEvent.change(input, { target: { value: decimal } })
+      expect(screen.getByText(expected)).toBeInTheDocument()
+    }
+  )
+
   it.each(['microseconds', 'nanoseconds'])('restores the saved %s epoch unit', (epochUnit) => {
     useToolStateCache.setState({
       cache: new Map([['timestamp-converter', { input: '', zone: 'UTC', epochUnit }]]),

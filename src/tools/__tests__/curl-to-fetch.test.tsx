@@ -124,12 +124,13 @@ describe('CurlToFetch', () => {
 
   it.each([
     ['q=a b', 'q=a%20b'],
+    ["q=!*'()", 'q=%21%2A%27%28%29'],
     ['a b', 'a%20b'],
     ['=a b', 'a%20b'],
   ])('applies curl data-urlencode rules to %s', (data, expected) => {
     renderTool(CurlToFetch)
     fireEvent.change(screen.getByPlaceholderText(/curl/i), {
-      target: { value: `curl https://api.example.com --data-urlencode '${data}'` },
+      target: { value: `curl https://api.example.com --data-urlencode "${data}"` },
     })
     const output = (screen.getAllByTestId('monaco-editor').at(-1) as HTMLTextAreaElement).value
     expect(output).toContain(`body: '${expected}'`)
@@ -193,13 +194,24 @@ describe('CurlToFetch', () => {
     fireEvent.change(screen.getByPlaceholderText(/curl/i), {
       target: {
         value:
-          'curl --url https://api.example.com/u -m 5 -w fmt -c jar -D headers --limit-rate 1m -K cfg -r 0-5 -T upload',
+          'curl --url https://api.example.com/u -m 5 -w fmt -c jar -D headers --limit-rate 1m -K cfg -r 0-5',
       },
     })
     const output = (screen.getAllByTestId('monaco-editor').at(-1) as HTMLTextAreaElement).value
     expect(output).toContain("fetch('https://api.example.com/u')")
-    expect(output).not.toContain("fetch('upload')")
   })
+
+  it.each(['-T ./payload.json', '--upload-file ./payload.json'])(
+    'refuses file-backed uploads from %s',
+    (uploadFlag) => {
+      renderTool(CurlToFetch)
+      fireEvent.change(screen.getByPlaceholderText(/curl/i), {
+        target: { value: `curl ${uploadFlag} https://api.example.com/upload` },
+      })
+      expect(screen.getByText(/file-backed request bodies/i)).toBeInTheDocument()
+      expect(screen.getByText(/\.\/payload\.json/)).toBeInTheDocument()
+    }
+  )
 
   it('keeps the first positional URL and ignores unknown long equals flags', () => {
     renderTool(CurlToFetch)
@@ -237,13 +249,16 @@ describe('CurlToFetch', () => {
     expect(output).toContain("'Authorization': 'Basic dXNlcjpwdw=='")
   })
 
-  it('uses HEAD for curl head requests', () => {
-    renderTool(CurlToFetch)
-    fireEvent.change(screen.getByPlaceholderText(/curl/i), {
-      target: { value: 'curl --head https://api.example.com' },
-    })
-    expect(screen.getByText('HEAD')).toBeInTheDocument()
-  })
+  it.each(['curl --head https://api.example.com', 'curl -X HEAD https://api.example.com'])(
+    'uses HEAD for curl head request %s',
+    (command) => {
+      renderTool(CurlToFetch)
+      fireEvent.change(screen.getByPlaceholderText(/curl/i), {
+        target: { value: command },
+      })
+      expect(screen.getByText('HEAD')).toBeInTheDocument()
+    }
+  )
 
   it('moves joined data into the query string for curl get requests', () => {
     renderTool(CurlToFetch)
@@ -255,6 +270,40 @@ describe('CurlToFetch', () => {
     expect(output).toContain("fetch('https://api.example.com/items?active=1&a=1&b=2')")
     expect(output).not.toContain('body:')
     expect(output).not.toContain('Content-Type')
+  })
+
+  it.each([
+    ['curl -I -G -d q=x https://api.example.com/items', 'HEAD'],
+    ['curl -G -d q=x -I https://api.example.com/items', 'HEAD'],
+    ['curl -X PATCH -G -d q=x https://api.example.com/items', 'PATCH'],
+    ['curl -G -d q=x -X PATCH https://api.example.com/items', 'PATCH'],
+  ])('keeps method precedence for %s', (command, method) => {
+    renderTool(CurlToFetch)
+    fireEvent.change(screen.getByPlaceholderText(/curl/i), {
+      target: { value: command },
+    })
+    expect(screen.getByText(method)).toBeInTheDocument()
+    const output = (screen.getAllByTestId('monaco-editor').at(-1) as HTMLTextAreaElement).value
+    expect(output).toContain('https://api.example.com/items?q=x')
+    expect(output).not.toContain('body:')
+  })
+
+  it.each([
+    ['fetch', 'response.status', 'Object.fromEntries(response.headers)'],
+    ['ky', 'response.status', 'Object.fromEntries(response.headers)'],
+    ['XHR', 'xhr.status', 'xhr.getAllResponseHeaders()'],
+    ['Node.js', 'res.statusCode', 'res.headers'],
+  ])('reads status and headers for HEAD requests in %s output', (tab, status, headers) => {
+    renderTool(CurlToFetch)
+    fireEvent.change(screen.getByPlaceholderText(/curl/i), {
+      target: { value: 'curl -I https://api.example.com/status' },
+    })
+    if (tab !== 'fetch') fireEvent.click(screen.getByRole('tab', { name: tab }))
+    const output = (screen.getAllByTestId('monaco-editor').at(-1) as HTMLTextAreaElement).value
+    expect(output).toContain(status)
+    expect(output).toContain(headers)
+    expect(output).not.toContain('.json()')
+    expect(output).not.toContain('JSON.parse')
   })
 
   it('encodes non-Latin basic-auth credentials as UTF-8', () => {

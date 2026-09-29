@@ -66,6 +66,33 @@ function floorDivide(value: bigint, divisor: bigint): bigint {
   return value < 0n && value % divisor !== 0n ? quotient - 1n : quotient
 }
 
+function decimalSubsecondEpochToMs(raw: string, unit: EpochUnit): number | null {
+  const match = /^(-?)(\d+)\.(\d+)$/.exec(raw)
+  const integerPart = match?.[2]
+  const fractionPart = match?.[3]
+  if (!integerPart || !fractionPart) return null
+
+  const scale = 10n ** BigInt(fractionPart.length)
+  const sign = match[1] === '-' ? -1n : 1n
+  const value = sign * BigInt(`${integerPart}${fractionPart}`)
+  let resolvedUnit = unit
+  if (unit === 'auto') {
+    const magnitude = value < 0n ? -value : value
+    resolvedUnit =
+      magnitude < 1_000_000_000_000n * scale
+        ? 'seconds'
+        : magnitude < 1_000_000_000_000_000n * scale
+          ? 'milliseconds'
+          : magnitude < 1_000_000_000_000_000_000n * scale
+            ? 'microseconds'
+            : 'nanoseconds'
+  }
+  if (resolvedUnit !== 'microseconds' && resolvedUnit !== 'nanoseconds') return null
+
+  const unitDivisor = resolvedUnit === 'microseconds' ? 1000n : 1_000_000n
+  return Number(floorDivide(value, scale * unitDivisor))
+}
+
 function integerEpochToMs(raw: string, unit: EpochUnit): number {
   const value = BigInt(raw)
   let resolvedUnit = unit
@@ -109,7 +136,10 @@ function parseInput(input: string, epochUnit: EpochUnit = 'auto'): Date | null {
   const integer = /^-?\d+$/.test(trimmed)
   const num = Number(trimmed)
   if (!isNaN(num) && isFinite(num)) {
-    const ms = integer ? integerEpochToMs(trimmed, epochUnit) : epochToMs(num, epochUnit)
+    const exactDecimalMs = integer ? null : decimalSubsecondEpochToMs(trimmed, epochUnit)
+    const ms = integer
+      ? integerEpochToMs(trimmed, epochUnit)
+      : (exactDecimalMs ?? epochToMs(num, epochUnit))
     const d = new Date(ms)
     if (!isNaN(d.getTime())) return d
   }
