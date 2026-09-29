@@ -52,13 +52,13 @@ const EPOCH_UNITS: ReadonlySet<string> = new Set([
 function epochToMs(num: number, unit: EpochUnit): number {
   if (unit === 'seconds') return num * 1000
   if (unit === 'milliseconds') return num
-  if (unit === 'microseconds') return num / 1000
-  if (unit === 'nanoseconds') return num / 1_000_000
+  if (unit === 'microseconds') return Math.floor(num / 1000)
+  if (unit === 'nanoseconds') return Math.floor(num / 1_000_000)
   const magnitude = Math.abs(num)
   if (magnitude < 1e12) return num * 1000
   if (magnitude < 1e15) return num
-  if (magnitude < 1e18) return num / 1000
-  return num / 1_000_000
+  if (magnitude < 1e18) return Math.floor(num / 1000)
+  return Math.floor(num / 1_000_000)
 }
 
 function floorDivide(value: bigint, divisor: bigint): bigint {

@@ -1,8 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { reformatJson } from '@/lib/lossless-json'
+import { exactNumber, reformatJson } from '@/lib/lossless-json'
 import { MAX_TRAVERSAL_DEPTH, sortKeysDeepBounded } from '@/lib/traversal'
 
 describe('reformatJson', () => {
+  it.each([
+    ['1e-400', null],
+    ['0', 0],
+    ['0.0', 0],
+    ['-0', -0],
+    ['0e5', 0],
+  ])('rejects lossy underflow but keeps exact zero %s', (raw, expected) => {
+    expect(exactNumber(raw)).toBe(expected)
+  })
+
   it.each(['12345678901234567890', '-12345678901234567890', '1e400', '-0', '1.10', '1E5', '0.1'])(
     'keeps the number source text in %s',
     (number) => {

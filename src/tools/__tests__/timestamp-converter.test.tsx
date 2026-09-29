@@ -176,6 +176,22 @@ describe('TimestampConverter', () => {
     expect(screen.getByText('1969-12-31T23:59:59.999Z')).toBeInTheDocument()
   })
 
+  it.each([
+    ['microseconds', '-1', '-1.0', '1969-12-31T23:59:59.999Z'],
+    ['nanoseconds', '-1', '-1.0', '1969-12-31T23:59:59.999Z'],
+    ['auto', '-1000000000000001', '-1000000000000001.0', '1938-04-24T22:13:19.999Z'],
+    ['auto', '-1000000000000000100', '-1000000000000000100.0', '1938-04-24T22:13:19.999Z'],
+  ])('floors equivalent integer and decimal %s epochs', (unit, integer, decimal, expected) => {
+    renderTool(TimestampConverter)
+    fireEvent.change(screen.getByLabelText('Numeric input unit'), { target: { value: unit } })
+    const input = screen.getByLabelText('Timestamp or date to convert')
+
+    fireEvent.change(input, { target: { value: integer } })
+    expect(screen.getByText(expected)).toBeInTheDocument()
+    fireEvent.change(input, { target: { value: decimal } })
+    expect(screen.getByText(expected)).toBeInTheDocument()
+  })
+
   it.each(['microseconds', 'nanoseconds'])('restores the saved %s epoch unit', (epochUnit) => {
     useToolStateCache.setState({
       cache: new Map([['timestamp-converter', { input: '', zone: 'UTC', epochUnit }]]),

@@ -47,6 +47,9 @@ describe('api-client URL helpers', () => {
     ['localhost:3000/x', 'http://localhost:3000/x'],
     ['127.0.0.1:8080', 'http://127.0.0.1:8080'],
     ['[::1]:5173/a', 'http://[::1]:5173/a'],
+    ['[::]:5173/a', 'http://[::]:5173/a'],
+    ['127.42.10.9:8080', 'http://127.42.10.9:8080'],
+    ['localhost.:3000/x', 'http://localhost.:3000/x'],
     ['api.localhost/x', 'http://api.localhost/x'],
     ['http://my_api:8080/health', 'http://my_api:8080/health'],
     ['HTTPS://Example.com', 'HTTPS://Example.com'],
@@ -55,9 +58,12 @@ describe('api-client URL helpers', () => {
     expect(normalizeRequestUrl(input)).toBe(expected)
   })
 
-  it.each(['not a url', 'ftp://x', ''])('rejects invalid request URL %j', (input) => {
-    expect(() => normalizeRequestUrl(input)).toThrow('Enter an http:// or https:// URL')
-  })
+  it.each(['not a url', 'ftp://x', '', 'https:/example.com', 'HTTP:example.com'])(
+    'rejects invalid request URL %j',
+    (input) => {
+      expect(() => normalizeRequestUrl(input)).toThrow('Enter an http:// or https:// URL')
+    }
+  )
 
   it.each([
     ['not%20a%20url', false],
@@ -220,6 +226,26 @@ describe('ApiClient', () => {
     fireEvent.click(screen.getByRole('button', { name: 'JSON' }))
 
     expect(screen.getByTestId('monaco-editor')).toHaveValue(json)
+  })
+
+  it('keeps body-family stashes consistent across method changes', () => {
+    renderTool(ApiClient)
+    fireEvent.change(screen.getByDisplayValue('GET'), { target: { value: 'POST' } })
+    fireEvent.click(screen.getByRole('tab', { name: 'Body' }))
+    const json = '{"a":1}'
+    fireEvent.change(screen.getByTestId('monaco-editor'), { target: { value: json } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Form URL-encoded' }))
+    fireEvent.change(screen.getByLabelText('Field 1 name'), { target: { value: 'q' } })
+    fireEvent.change(screen.getByLabelText('Field 1 value'), { target: { value: 'x' } })
+    fireEvent.change(screen.getByDisplayValue('POST'), { target: { value: 'GET' } })
+    fireEvent.change(screen.getByDisplayValue('GET'), { target: { value: 'POST' } })
+
+    expect(screen.getByRole('button', { name: 'JSON' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('monaco-editor')).toHaveValue(json)
+    fireEvent.click(screen.getByRole('button', { name: 'Form URL-encoded' }))
+    expect(screen.getByLabelText('Field 1 name')).toHaveValue('q')
+    expect(screen.getByLabelText('Field 1 value')).toHaveValue('x')
   })
 
   it('restores a JSON body after switching through no body', () => {

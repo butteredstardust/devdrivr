@@ -81,6 +81,22 @@ describe('csv-helpers', () => {
     if (result.status !== 'parsed') return
     expect(result.rows[0]?.id).toBe('12345678901234567890')
     expect(toOutput(result.columns, result.rows, 'tsv')).toContain('12345678901234567890')
+    expect(summarizeColumns(result.columns, result.rows)[0]).toMatchObject({
+      type: 'string',
+      numeric: null,
+    })
+  })
+
+  it('infers exact numeric strings without rounding unsafe values', () => {
+    const summaries = summarizeColumns(
+      ['value'],
+      ['42', '12345678901234567890'].map((value) => ({ value }))
+    )
+
+    expect(summaries[0]).toMatchObject({
+      type: 'mixed',
+      numeric: { min: 42, max: 42, mean: 42, median: 42, sum: 42 },
+    })
   })
 
   it('keeps the extra fields of a ragged row instead of dropping them', () => {

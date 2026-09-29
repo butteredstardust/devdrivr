@@ -16,7 +16,6 @@ import {
 } from '@/tools/api-client/form-body'
 import {
   applyMethodDefaults,
-  BODY_METHODS,
   buildUrlWithParams,
   MAX_UPLOAD_FILE_BYTES,
   parseQueryParams,
@@ -167,8 +166,8 @@ export function useRequestEditor({ state, updateState }: UseRequestEditorInput) 
    * this left the request declaring JSON while sending `a=1&b=2`. Only the app's own boilerplate
    * values are rewritten; a hand-typed content type is the user's decision and survives.
    */
-  const handleBodyModeChange = useCallback(
-    (nextMode: string) => {
+  const transitionBodyMode = useCallback(
+    (nextMode: string, sourceHeaders = headers) => {
       if (bodyMode === FORMDATA_MODE && nextMode !== FORMDATA_MODE) clearFormRows()
       const currentFamily = bodyFamily(bodyMode) ?? lastBodyFamilyRef.current
       const nextFamily = bodyFamily(nextMode)
@@ -187,15 +186,22 @@ export function useRequestEditor({ state, updateState }: UseRequestEditorInput) 
       else if (currentFamily) lastBodyFamilyRef.current = currentFamily
 
       const implied = contentTypeFor(nextMode)
-      const nextHeaders = headers.flatMap((h) => {
+      const nextHeaders = sourceHeaders.flatMap((h) => {
         if (h.key.toLowerCase() !== 'content-type' || !isBoilerplateContentType(h.value)) return [h]
         // Multipart's header is generated at send time with the boundary, so the row goes away.
         if (nextMode === FORMDATA_MODE) return []
         return implied ? [{ ...h, value: implied }] : [h]
       })
-      updateDraft({ body: nextBody, bodyMode: nextMode, headers: nextHeaders })
+      return { body: nextBody, bodyMode: nextMode, headers: nextHeaders }
     },
-    [body, bodyMode, clearFormRows, headers, updateDraft]
+    [body, bodyMode, clearFormRows, headers]
+  )
+
+  const handleBodyModeChange = useCallback(
+    (nextMode: string) => {
+      updateDraft(transitionBodyMode(nextMode))
+    },
+    [transitionBodyMode, updateDraft]
   )
 
   const addFormField = useCallback(() => {
@@ -271,10 +277,14 @@ export function useRequestEditor({ state, updateState }: UseRequestEditorInput) 
 
   const handleMethodChange = useCallback(
     (nextMethod: string) => {
-      if (bodyMode === FORMDATA_MODE && !BODY_METHODS.has(nextMethod)) clearFormRows()
-      updateState({ draft: applyMethodDefaults(state.draft, nextMethod) })
+      const nextDraft = applyMethodDefaults(state.draft, nextMethod)
+      const modePatch =
+        nextDraft.bodyMode === bodyMode
+          ? {}
+          : transitionBodyMode(nextDraft.bodyMode, nextDraft.headers)
+      updateState({ draft: { ...nextDraft, ...modePatch } })
     },
-    [bodyMode, clearFormRows, state.draft, updateState]
+    [bodyMode, state.draft, transitionBodyMode, updateState]
   )
 
   return {

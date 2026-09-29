@@ -26,6 +26,7 @@ export function exactNumber(raw: string): number | null {
   const significand = raw.split(/[eE]/, 1)[0]?.replace('-', '').replace('.', '') ?? ''
   const significantDigits = significand.replace(/^0+/, '').length || 1
   const value = Number(raw)
+  if (value === 0 && /[1-9]/.test(significand)) return null
   return significantDigits <= 15 && Number.isFinite(value) ? value : null
 }
 

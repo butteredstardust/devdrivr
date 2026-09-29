@@ -466,10 +466,14 @@ export function isDateString(value: unknown): boolean {
   return !Number.isNaN(new Date(value).getTime())
 }
 
+function numericValue(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  if (typeof value !== 'string' || value.trim() === '') return null
+  return exactNumber(value.trim())
+}
+
 function isNumeric(value: unknown): boolean {
-  if (typeof value === 'number') return Number.isFinite(value)
-  if (typeof value !== 'string' || value.trim() === '') return false
-  return Number.isFinite(Number(value))
+  return numericValue(value) !== null
 }
 
 export function inferColumnType(values: unknown[]): ColumnType {
@@ -505,7 +509,10 @@ export function summarizeColumn(name: string, values: unknown[]): ColumnSummary 
 
   let numeric: ColumnSummary['numeric'] = null
   if (type === 'number' || type === 'mixed') {
-    const numbers = filled.map(Number).filter((n) => Number.isFinite(n))
+    const numbers = filled.flatMap((value) => {
+      const number = numericValue(value)
+      return number === null ? [] : [number]
+    })
     if (numbers.length > 0) {
       const sorted = [...numbers].sort((a, b) => a - b)
       const mid = Math.floor(sorted.length / 2)
