@@ -16,6 +16,7 @@ import { Field } from '@/components/shared/Field'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { Toggle } from '@/components/shared/Toggle'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
+import { reformatJson } from '@/lib/lossless-json'
 import {
   claimWindowVariant,
   computeClaimWindow,
@@ -156,6 +157,10 @@ function decodeJwt(token: string): JwtDecodeResult {
   }
 }
 
+function tokenText(value: string): string {
+  return value.trim().replace(/^Bearer\s+/i, '')
+}
+
 function formatTimestamp(value: unknown): string | null {
   if (typeof value !== 'number') return null
   return new Date(value * 1000).toLocaleString()
@@ -215,14 +220,15 @@ export default function JwtDecoder() {
     [updateState]
   )
 
+  const normalizedToken = useMemo(() => tokenText(token), [token])
   const decodeResult = useMemo(() => {
-    if (!token.trim()) return { decoded: null, error: null }
-    return decodeJwt(token)
-  }, [token])
+    if (!normalizedToken) return { decoded: null, error: null }
+    return decodeJwt(normalizedToken)
+  }, [normalizedToken])
   const decoded = decodeResult.decoded
 
   useEffect(() => {
-    if (decoded) setPayloadDraft(JSON.stringify(decoded.payload, null, 2))
+    if (decoded) setPayloadDraft(reformatJson(decoded.payloadRaw, { indent: 2 }))
     else setPayloadDraft('')
   }, [decoded])
 
@@ -258,7 +264,7 @@ export default function JwtDecoder() {
     // so a slow first `importKey` could otherwise land after a later, more correct answer.
     let live = true
     void verifyJwtSignature({
-      token,
+      token: normalizedToken,
       alg,
       secret,
       publicKey,
@@ -270,15 +276,25 @@ export default function JwtDecoder() {
     return () => {
       live = false
     }
-  }, [decoded, token, secret, state.secretEncoding, publicKey, state.publicKeyFormat, alg])
+  }, [
+    decoded,
+    normalizedToken,
+    secret,
+    state.secretEncoding,
+    publicKey,
+    state.publicKeyFormat,
+    alg,
+  ])
 
   const handleSign = async () => {
     if (!decoded) return
     let payload: Record<string, unknown>
+    let payloadJson: string
     try {
       const parsed: unknown = JSON.parse(payloadDraft)
       if (!isJwtObject(parsed)) throw new Error('Payload must be a JSON object')
       payload = parsed
+      payloadJson = reformatJson(payloadDraft, { indent: 0 })
     } catch (error) {
       setLastAction(error instanceof Error ? error.message : 'Payload JSON is invalid', 'error')
       return
@@ -286,8 +302,8 @@ export default function JwtDecoder() {
     setSigning(true)
     try {
       const signed = await signJwt({
-        header: decoded.header,
-        payload,
+        headerJson: reformatJson(decoded.headerRaw, { indent: 0 }),
+        payloadJson,
         secret,
         encoding: state.secretEncoding,
       })
@@ -311,11 +327,13 @@ export default function JwtDecoder() {
 
   // Color-coded token parts
   const tokenParts = useMemo(() => {
-    const trimmed = token.trim()
-    const parts = trimmed.split('.')
+    const parts = normalizedToken.split('.')
     if (parts.length !== 3) return null
     return parts
-  }, [token])
+  }, [normalizedToken])
+
+  const formattedHeader = decoded ? reformatJson(decoded.headerRaw, { indent: 2 }) : ''
+  const formattedPayload = decoded ? reformatJson(decoded.payloadRaw, { indent: 2 }) : ''
 
   return (
     <ToolLayout fullBleed>
@@ -510,10 +528,10 @@ export default function JwtDecoder() {
               <section>
                 <div className="mb-1 flex items-center justify-between">
                   <h3 className="text-xs text-[var(--color-info)]">Header</h3>
-                  <CopyButton text={JSON.stringify(decoded.header, null, 2)} />
+                  <CopyButton text={formattedHeader} />
                 </div>
                 <pre className="rounded border border-[var(--color-info)]/30 bg-[var(--color-surface)] p-3 font-mono text-xs text-[var(--color-text)]">
-                  {JSON.stringify(decoded.header, null, 2)}
+                  {formattedHeader}
                 </pre>
               </section>
 
@@ -533,7 +551,7 @@ export default function JwtDecoder() {
             <section>
               <div className="mb-1 flex items-center justify-between">
                 <h3 className="text-xs text-[var(--color-success)]">Payload Claims</h3>
-                <CopyButton text={JSON.stringify(decoded.payload, null, 2)} />
+                <CopyButton text={formattedPayload} />
               </div>
               <div className="rounded border border-[var(--color-success)]/30 bg-[var(--color-surface)] p-3">
                 {isHmacAlg(alg) && (

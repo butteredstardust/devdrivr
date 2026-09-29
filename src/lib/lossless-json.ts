@@ -10,6 +10,21 @@ class JsonObject {
 
 type JsonValue = null | boolean | string | JsonNumber | JsonObject | JsonValue[]
 
+function normalizedDecimal(raw: string): { digits: string; exponent: number } {
+  const unsigned = raw.startsWith('-') || raw.startsWith('+') ? raw.slice(1) : raw
+  const [coefficient = '', exponentText] = unsigned.toLowerCase().split('e')
+  const [integer = '', fraction = ''] = coefficient.split('.')
+  let digits = `${integer}${fraction}`.replace(/^0+/, '')
+  if (!digits) return { digits: '0', exponent: 0 }
+
+  let exponent = Number(exponentText ?? 0) - fraction.length
+  while (digits.endsWith('0')) {
+    digits = digits.slice(0, -1)
+    exponent += 1
+  }
+  return { digits, exponent }
+}
+
 export function exactNumber(raw: string): number | null {
   if (/^-?(?:0|[1-9]\d*)$/.test(raw)) {
     const value = Number(raw)
@@ -23,11 +38,13 @@ export function exactNumber(raw: string): number | null {
     return null
   }
 
-  const significand = raw.split(/[eE]/, 1)[0]?.replace('-', '').replace('.', '') ?? ''
-  const significantDigits = significand.replace(/^0+/, '').length || 1
   const value = Number(raw)
+  if (!Number.isFinite(value)) return null
+  const significand = raw.split(/[eE]/, 1)[0]?.replace('-', '').replace('.', '') ?? ''
   if (value === 0 && /[1-9]/.test(significand)) return null
-  return significantDigits <= 15 && Number.isFinite(value) ? value : null
+  const source = normalizedDecimal(raw)
+  const roundTrip = normalizedDecimal(String(value))
+  return source.digits === roundTrip.digits && source.exponent === roundTrip.exponent ? value : null
 }
 
 class LosslessJsonParser {

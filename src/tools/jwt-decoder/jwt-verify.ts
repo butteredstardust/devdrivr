@@ -231,29 +231,49 @@ export async function verifyJwtSignature({
   }
 }
 
-export async function signJwt({
-  header,
-  payload,
-  secret,
-  encoding = 'utf8',
-  subtle = globalThis.crypto?.subtle,
-}: {
+type SignJwtJson = {
   header: Record<string, unknown>
   payload: Record<string, unknown>
-  secret: string
-  encoding?: 'utf8' | 'base64'
-  subtle?: SubtleCrypto
-}): Promise<string> {
-  const alg = typeof header['alg'] === 'string' ? header['alg'] : ''
+  headerJson?: never
+  payloadJson?: never
+}
+
+type SignJwtText = {
+  headerJson: string
+  payloadJson: string
+  header?: never
+  payload?: never
+}
+
+export async function signJwt(
+  options: (SignJwtJson | SignJwtText) & {
+    secret: string
+    encoding?: 'utf8' | 'base64'
+    subtle?: SubtleCrypto
+  }
+): Promise<string> {
+  const { secret, encoding = 'utf8', subtle = globalThis.crypto?.subtle } = options
+  const headerJson = 'headerJson' in options ? options.headerJson : JSON.stringify(options.header)
+  const payloadJson =
+    'payloadJson' in options ? options.payloadJson : JSON.stringify(options.payload)
+  const header: unknown = JSON.parse(headerJson)
+  if (header === null || typeof header !== 'object' || Array.isArray(header)) {
+    throw new Error('JWT header must be a JSON object.')
+  }
+  const payload: unknown = JSON.parse(payloadJson)
+  if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error('JWT payload must be a JSON object.')
+  }
+  const headerObject = header as Record<string, unknown>
+  const alg = typeof headerObject['alg'] === 'string' ? headerObject['alg'] : ''
   const hash = HMAC_HASHES[alg]
   if (!hash)
     throw new Error('Only HS256, HS384, and HS512 tokens can be re-signed with a shared secret.')
   if (!secret) throw new Error('Enter a shared secret before signing.')
   if (!subtle) throw new Error('WebCrypto is unavailable in this environment.')
-  const encode = (value: unknown) =>
-    bytesToBase64Url(new TextEncoder().encode(JSON.stringify(value)))
-  const encodedHeader = encode(header)
-  const encodedPayload = encode(payload)
+  const encode = (value: string) => bytesToBase64Url(new TextEncoder().encode(value))
+  const encodedHeader = encode(headerJson)
+  const encodedPayload = encode(payloadJson)
   const signingInput = `${encodedHeader}.${encodedPayload}`
   const key = await subtle.importKey(
     'raw',

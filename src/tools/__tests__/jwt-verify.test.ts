@@ -155,6 +155,24 @@ describe('HS re-signing', () => {
       )
     ).toEqual({ sub: 'edited' })
   })
+
+  it('signs serialized JSON without rounding big-number claims', async () => {
+    const payloadJson = '{"sub":12345678901234567890}'
+    const token = await signJwt({
+      headerJson: '{"alg":"HS256","typ":"JWT"}',
+      payloadJson,
+      secret: 'topsecret',
+    })
+    const encodedPayload = token.split('.')[1] ?? ''
+    const base64 = encodedPayload.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')
+    const bytes = Uint8Array.from(atob(padded), (character) => character.charCodeAt(0))
+
+    expect(new TextDecoder().decode(bytes)).toBe(payloadJson)
+    await expect(
+      verifyJwtSignature({ token, alg: 'HS256', secret: 'topsecret' })
+    ).resolves.toMatchObject({ status: 'valid' })
+  })
 })
 
 describe('computeClaimWindow', () => {

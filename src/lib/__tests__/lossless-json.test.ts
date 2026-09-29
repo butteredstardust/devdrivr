@@ -4,6 +4,18 @@ import { MAX_TRAVERSAL_DEPTH, sortKeysDeepBounded } from '@/lib/traversal'
 
 describe('reformatJson', () => {
   it.each([
+    ['0.30000000000000004', 0.30000000000000004],
+    ['51.50735090000001', 51.50735090000001],
+    ['1.10', 1.1],
+    ['0.1234567890123456789', null],
+    ['1.00000000000000001', null],
+    ['123456789012345678e-2', null],
+    ['1e-7', 1e-7],
+  ])('keeps %s numeric only when its double round trip loses nothing', (raw, expected) => {
+    expect(exactNumber(raw)).toBe(expected)
+  })
+
+  it.each([
     ['1e-400', null],
     ['0', 0],
     ['0.0', 0],
