@@ -6,6 +6,7 @@ mod note_assets;
 mod opened_files;
 #[cfg(feature = "remote-ui")]
 mod remote_ui;
+mod update_guard;
 mod window_commands;
 
 // The bridge pulls in an AGPL-3.0-only crate. Making this a hard build failure rather than a note
@@ -195,7 +196,14 @@ pub fn run() {
         // in-place strands the user on a web page with the app gone.
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        // Refuses a downgrade: an older signed release that a changed manifest calls newer.
+        .plugin(
+            tauri_plugin_updater::Builder::new()
+                .default_version_comparator(|current, release| {
+                    release.version > current && update_guard::signed_after_this_build(&release)
+                })
+                .build(),
+        )
         .manage(opened_files::OpenedFiles::default())
         .manage(mcp::McpManager::default())
         .manage(batch::BatchDb::default())
