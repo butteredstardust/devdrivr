@@ -148,6 +148,12 @@ export const NPM_DEPENDENCIES: readonly Attribution[] = [
 export const CARGO_DEPENDENCIES: readonly Attribution[] = [
   { name: 'axum', version: '0.8.9', license: 'MIT', copyright: 'Tokio contributors' },
   {
+    name: 'base64',
+    version: '0.22.1',
+    license: 'MIT OR Apache-2.0',
+    copyright: 'Alice Maz and Marshall Pierce',
+  },
+  {
     name: 'rmcp',
     version: '0.16.0',
     license: 'Apache-2.0',

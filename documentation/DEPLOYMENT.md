@@ -135,6 +135,7 @@ WARNING: Keep the update-signing private key secure. Installed users cannot rece
 Update signing and code signing have different purposes:
 
 - **Update signing (minisign)** — Run `bunx tauri signer generate` to create the keypair. The public key is in `plugins.updater.pubkey`. The `TAURI_SIGNING_PRIVATE_KEY` repository secret provides the private key. CI requires it because `createUpdaterArtifacts` is enabled. Update signing proves that an update payload comes from this repository. It does not identify a developer to an operating system.
+- **Downgrade guard** — The `version` in `updater.json` is not signed. `src-tauri/src/update_guard.rs` reads the signing time from the trusted comment of each update signature. The updater refuses an update signed more than five minutes before the running app was built. This stops a changed manifest from labelling an older signed release as a newer version. Always sign a release in the same CI run that builds it.
 - **Code signing (Developer ID / Authenticode)** — Gatekeeper and SmartScreen use this signing. devdrivr does not use a paid signing identity.
 
 Releases use these platform signing settings:

@@ -1012,6 +1012,7 @@ name = "devdrivr"
 version = "0.1.111"
 dependencies = [
  "axum",
+ "base64 0.22.1",
  "rmcp",
  "serde",
  "serde_json",
