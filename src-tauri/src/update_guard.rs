@@ -22,14 +22,15 @@ pub fn built_at() -> u64 {
 const CLOCK_SKEW_SECS: u64 = 300;
 
 /// The signing time in a Tauri signature: base64 of a minisign `.sig` file.
+///
+/// Read only the third line. minisign-verify authenticates that line and no other, so a
+/// `trusted comment:` on any other line can be forged. Decode the same way as the updater.
 pub fn signed_at(signature: &str) -> Option<u64> {
     let decoded = base64::engine::general_purpose::STANDARD
-        .decode(signature.trim())
+        .decode(signature)
         .ok()?;
     let text = String::from_utf8(decoded).ok()?;
-    let comment = text
-        .lines()
-        .find_map(|line| line.strip_prefix("trusted comment: "))?;
+    let comment = text.lines().nth(2)?.strip_prefix("trusted comment: ")?;
     comment
         .split('\t')
         .find_map(|field| field.strip_prefix("timestamp:"))?
@@ -37,35 +38,28 @@ pub fn signed_at(signature: &str) -> Option<u64> {
         .ok()
 }
 
-/// The manifest key for this platform, as the updater names it: `darwin-aarch64` and so on.
-fn this_target() -> String {
-    let os = if cfg!(target_os = "macos") {
-        "darwin"
-    } else {
-        std::env::consts::OS
-    };
-    format!("{os}-{}", std::env::consts::ARCH)
-}
-
-/// Whether every signature that can reach this platform was made after `built_at`. Without an
-/// entry for this platform, every entry must pass.
-pub fn signed_after_build(release: &RemoteRelease, target: &str, built_at: u64) -> bool {
+/// Whether every signature in `release` was made after `built_at`.
+///
+/// Check every entry, not only this platform's. The updater picks an entry by installer type
+/// first (`windows-x86_64-nsis` before `windows-x86_64`), and the guard must not check a
+/// different entry from the one it installs. One CI run signs every entry of a real release, so
+/// all of them pass.
+pub fn signed_after_build(release: &RemoteRelease, built_at: u64) -> bool {
     let fresh = |signature: &str| {
         signed_at(signature)
             .is_some_and(|signed| signed.saturating_add(CLOCK_SKEW_SECS) >= built_at)
     };
     match &release.data {
         RemoteReleaseInner::Dynamic(platform) => fresh(&platform.signature),
-        RemoteReleaseInner::Static { platforms } => match platforms.get(target) {
-            Some(platform) => fresh(&platform.signature),
-            None => !platforms.is_empty() && platforms.values().all(|p| fresh(&p.signature)),
-        },
+        RemoteReleaseInner::Static { platforms } => {
+            !platforms.is_empty() && platforms.values().all(|p| fresh(&p.signature))
+        }
     }
 }
 
-/// Whether `release` was signed after this build, for this platform.
+/// Whether every signature in `release` was made after this app was built.
 pub fn signed_after_this_build(release: &RemoteRelease) -> bool {
-    signed_after_build(release, &this_target(), built_at())
+    signed_after_build(release, built_at())
 }
 
 #[cfg(test)]
@@ -112,63 +106,67 @@ mod tests {
     }
 
     #[test]
+    fn a_trusted_comment_on_another_line_is_ignored() {
+        // minisign-verify does not authenticate line 1, so an attacker can write anything there.
+        let text = "trusted comment: timestamp:9999999999\nRUQ=\ntrusted comment: timestamp:500\tfile:a\nAAAA\n";
+        let sig = base64::engine::general_purpose::STANDARD.encode(text);
+        assert_eq!(signed_at(&sig), Some(500));
+        let text = "untrusted comment: x\nRUQ=\nAAAA\ntrusted comment: timestamp:9999999999\n";
+        let sig = base64::engine::general_purpose::STANDARD.encode(text);
+        assert_eq!(signed_at(&sig), None);
+    }
+
+    #[test]
     fn a_release_signed_after_this_build_passes() {
         let r = release("0.2.0", &[("darwin-aarch64", "timestamp:2000\tfile:a")]);
-        assert!(signed_after_build(&r, "darwin-aarch64", 1000));
+        assert!(signed_after_build(&r, 1000));
     }
 
     #[test]
     fn an_older_release_relabelled_as_newer_is_refused() {
         let r = release("9.9.9", &[("darwin-aarch64", "timestamp:500\tfile:a")]);
-        assert!(!signed_after_build(&r, "darwin-aarch64", 1000));
+        assert!(!signed_after_build(&r, 1000));
     }
 
     #[test]
     fn clock_skew_within_five_minutes_passes() {
         let r = release("0.2.0", &[("linux-x86_64", "timestamp:900\tfile:a")]);
-        assert!(signed_after_build(&r, "linux-x86_64", 1000));
-        assert!(!signed_after_build(&r, "linux-x86_64", 1301));
+        assert!(signed_after_build(&r, 1000));
+        assert!(!signed_after_build(&r, 1301));
     }
 
     #[test]
     fn a_signature_without_a_timestamp_is_refused() {
         let r = release("0.2.0", &[("linux-x86_64", "file:a")]);
-        assert!(!signed_after_build(&r, "linux-x86_64", 1000));
+        assert!(!signed_after_build(&r, 1000));
     }
 
     #[test]
-    fn only_this_platform_counts_when_present() {
+    fn every_entry_must_be_fresh() {
+        // A fresh base entry must not hide an old installer-specific entry.
+        let r = release(
+            "0.2.0",
+            &[
+                ("windows-x86_64", "timestamp:2000\tfile:a"),
+                ("windows-x86_64-nsis", "timestamp:500\tfile:b"),
+            ],
+        );
+        assert!(!signed_after_build(&r, 1000));
         let r = release(
             "0.2.0",
             &[
                 ("darwin-aarch64", "timestamp:2000\tfile:a"),
-                ("linux-x86_64", "timestamp:500\tfile:b"),
+                ("linux-x86_64", "timestamp:1900\tfile:b"),
             ],
         );
-        assert!(signed_after_build(&r, "darwin-aarch64", 1000));
-        assert!(!signed_after_build(&r, "linux-x86_64", 1000));
-        // No entry for this platform: every entry must pass.
-        assert!(!signed_after_build(&r, "windows-x86_64", 1000));
+        assert!(signed_after_build(&r, 1000));
+        assert!(!signed_after_build(&release("0.2.0", &[]), 1000));
     }
 
     #[test]
     fn a_zero_build_time_turns_the_check_off() {
         let r = release("0.2.0", &[("linux-x86_64", "timestamp:1\tfile:a")]);
-        assert!(signed_after_build(&r, "linux-x86_64", 0));
-    }
-
-    #[test]
-    fn this_target_matches_the_manifest_keys() {
-        let expected = if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
-            "darwin-aarch64"
-        } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-            "linux-x86_64"
-        } else if cfg!(all(windows, target_arch = "x86_64")) {
-            "windows-x86_64"
-        } else {
-            return;
-        };
-        assert_eq!(this_target(), expected);
+        assert!(signed_after_build(&r, 0));
     }
 
     #[test]
