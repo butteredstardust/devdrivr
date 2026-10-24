@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type {
   ApiCollection,
   ApiEnvironment,
@@ -9,27 +9,18 @@ import type {
   ResourceFolder,
   Snippet,
 } from '@/types/models'
-import { createSqliteTestDatabase, type SqliteTestDatabase } from '@/test-utils/sqlite-db'
+import { useSqliteTestDatabase } from '@/test-utils/sqlite-db'
 
-const sqliteMock = vi.hoisted(() => ({
-  database: undefined as SqliteTestDatabase | undefined,
-}))
+vi.mock(
+  '@tauri-apps/plugin-sql',
+  async () => (await import('@/test-utils/sqlite-db')).sqlitePluginModule
+)
+vi.mock(
+  '@tauri-apps/api/core',
+  async () => (await import('@/test-utils/sqlite-db')).sqliteCoreModule
+)
 
-vi.mock('@tauri-apps/plugin-sql', () => ({
-  default: {
-    load: async () => {
-      if (!sqliteMock.database) throw new Error('SQLite test database is not ready')
-      return sqliteMock.database.connection
-    },
-  },
-}))
-
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: async (command: string, payload?: unknown) => {
-    if (!sqliteMock.database) throw new Error('SQLite test database is not ready')
-    return sqliteMock.database.invoke(command, payload)
-  },
-}))
+const currentDatabase = useSqliteTestDatabase()
 
 function note(id: string, overrides: Partial<Note> = {}): Note {
   return {
@@ -49,19 +40,8 @@ function note(id: string, overrides: Partial<Note> = {}): Note {
 }
 
 describe('db.ts with SQLite', () => {
-  beforeEach(() => {
-    vi.resetModules()
-    sqliteMock.database = createSqliteTestDatabase()
-  })
-
-  afterEach(() => {
-    sqliteMock.database?.close()
-    sqliteMock.database = undefined
-  })
-
   it('binds numbered parameters by index and rolls back failed batches', async () => {
-    const database = sqliteMock.database
-    if (!database) throw new Error('SQLite test database is not ready')
+    const database = currentDatabase()
 
     await database.connection.execute('INSERT INTO settings (key, value) VALUES ($2, $1)', [
       'stored-value',
@@ -152,7 +132,7 @@ describe('db.ts with SQLite', () => {
       })
     )
 
-    const links = await sqliteMock.database?.connection.select<
+    const links = await currentDatabase().connection.select<
       Array<{ source_note_id: string; target_kind: string; target_id: string }>
     >(
       'SELECT source_note_id, target_kind, target_id FROM note_links ORDER BY target_kind, target_id'

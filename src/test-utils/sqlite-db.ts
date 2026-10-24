@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
+import { afterEach, beforeEach, vi } from 'vitest'
 
 type SqlParams = unknown[]
 
@@ -162,4 +163,47 @@ export function createSqliteTestDatabase(): SqliteTestDatabase {
       database.close()
     },
   }
+}
+
+// Kept on globalThis, not in module scope: `vi.resetModules()` gives every test a fresh copy of
+// this module, and the mocks below must still find the database the current test created.
+const CURRENT_DATABASE = Symbol.for('devdrivr.sqliteTestDatabase')
+type DatabaseHolder = { [CURRENT_DATABASE]?: SqliteTestDatabase }
+
+function currentDatabase(): SqliteTestDatabase {
+  const database = (globalThis as DatabaseHolder)[CURRENT_DATABASE]
+  if (!database) throw new Error('SQLite test database is not ready. Call useSqliteTestDatabase().')
+  return database
+}
+
+/**
+ * Stand-ins for the two modules the repositories write through. Each test file routes them to the
+ * real-migration database with:
+ *
+ *   vi.mock('@tauri-apps/plugin-sql', async () => (await import('@/test-utils/sqlite-db')).sqlitePluginModule)
+ *   vi.mock('@tauri-apps/api/core', async () => (await import('@/test-utils/sqlite-db')).sqliteCoreModule)
+ */
+export const sqlitePluginModule = {
+  default: { load: async () => currentDatabase().connection },
+}
+
+export const sqliteCoreModule = {
+  invoke: async (command: string, payload?: unknown) => currentDatabase().invoke(command, payload),
+}
+
+/**
+ * Gives each test a fresh in-memory database with every shipped migration applied, and a fresh
+ * copy of `@/lib/db` so its connection singleton and write queue start empty. Returns an accessor
+ * for asserting on the rows the repositories wrote.
+ */
+export function useSqliteTestDatabase(): () => SqliteTestDatabase {
+  beforeEach(() => {
+    vi.resetModules()
+    ;(globalThis as DatabaseHolder)[CURRENT_DATABASE] = createSqliteTestDatabase()
+  })
+  afterEach(() => {
+    ;(globalThis as DatabaseHolder)[CURRENT_DATABASE]?.close()
+    delete (globalThis as DatabaseHolder)[CURRENT_DATABASE]
+  })
+  return currentDatabase
 }
