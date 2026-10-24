@@ -1,6 +1,6 @@
 import { convertFileSrc, invoke } from '@tauri-apps/api/core'
 import { MAX_NOTE_IMAGE_BYTES } from '@/lib/file-limits'
-import { NOTE_COLORS } from '@/lib/schemas'
+import { NOTE_COLORS, TASK_PRIORITIES, TASK_STATUSES } from '@/lib/domain-values'
 import type { Note, NoteColor, ResourceFolder, TaskPriority, TaskStatus } from '@/types/models'
 
 const ASSET_ID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
@@ -77,8 +77,8 @@ type NoteAssetRestore = {
 }
 
 const VALID_NOTE_COLORS = new Set<string>(NOTE_COLORS)
-const TASK_STATUSES = new Set<TaskStatus>(['todo', 'in_progress', 'done', 'blocked'])
-const TASK_PRIORITIES = new Set<TaskPriority>(['low', 'medium', 'high'])
+const VALID_TASK_STATUSES = new Set<TaskStatus>(TASK_STATUSES)
+const VALID_TASK_PRIORITIES = new Set<TaskPriority>(TASK_PRIORITIES)
 const MAX_BACKUP_ASSETS = 500
 const MAX_BACKUP_BYTES = 100 * 1024 * 1024
 const MIME_EXTENSIONS = new Map([
@@ -193,12 +193,12 @@ function parseLegacyNote(value: unknown): LegacyNoteBackupEntry {
   ) {
     throw new Error('Backup contains an invalid note')
   }
-  if (value.taskStatus !== undefined && !TASK_STATUSES.has(value.taskStatus as TaskStatus)) {
+  if (value.taskStatus !== undefined && !VALID_TASK_STATUSES.has(value.taskStatus as TaskStatus)) {
     throw new Error('Backup contains an invalid task status')
   }
   if (
     value.taskPriority !== undefined &&
-    !TASK_PRIORITIES.has(value.taskPriority as TaskPriority)
+    !VALID_TASK_PRIORITIES.has(value.taskPriority as TaskPriority)
   ) {
     throw new Error('Backup contains an invalid task priority')
   }

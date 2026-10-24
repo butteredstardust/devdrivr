@@ -91,16 +91,19 @@ pub(super) fn trash_table(
 }
 
 pub(super) fn parse_folder_kind(kind: &str) -> std::result::Result<&'static str, McpError> {
-    match kind.trim() {
-        "notes" => Ok("notes"),
-        "snippets" => Ok("snippets"),
-        "apiRequests" => Ok("apiRequests"),
-        _ => Err(invalid_argument(
-            "kind",
-            format!("Unsupported folder kind: {kind}"),
-            &["Use one of: notes, snippets, apiRequests"],
-        )),
-    }
+    let trimmed = kind.trim();
+    FOLDER_KINDS
+        .iter()
+        .copied()
+        .find(|known| *known == trimmed)
+        .ok_or_else(|| {
+            let suggestion = format!("Use one of: {}", FOLDER_KINDS.join(", "));
+            invalid_argument(
+                "kind",
+                format!("Unsupported folder kind: {kind}"),
+                &[suggestion.as_str()],
+            )
+        })
 }
 
 pub(super) fn is_system_inbox(id: &str) -> bool {

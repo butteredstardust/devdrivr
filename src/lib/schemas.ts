@@ -1,4 +1,12 @@
 import { z } from 'zod'
+import {
+  NOTE_COLORS,
+  PROMPT_TEMPLATE_CATEGORIES,
+  PROMPT_TEMPLATE_TARGETS,
+  RESOURCE_FOLDER_KINDS,
+  TASK_PRIORITIES,
+  TASK_STATUSES,
+} from '@/lib/domain-values'
 import type {
   ApiHeader,
   ApiRequestAuth,
@@ -10,32 +18,11 @@ import type {
   ResourceFolder,
 } from '@/types/models'
 
-export const NOTE_COLORS = [
-  'yellow',
-  'green',
-  'blue',
-  'pink',
-  'purple',
-  'orange',
-  'red',
-  'gray',
-] as const
+export { NOTE_COLORS }
 
 const noteColorSchema = z.enum(NOTE_COLORS)
-// Kept in step with PROMPT_TEMPLATE_CATEGORIES in types/models.ts by hand. That module imports the
-// runtime value NOTE_COLORS from here, so importing the categories back would close a value cycle.
-const PROMPT_TEMPLATE_CATEGORY_VALUES = [
-  'code-review',
-  'refactoring',
-  'testing',
-  'docs',
-  'debugging',
-  'security',
-  'learning',
-  'productivity',
-] as const
-const promptTemplateCategorySchema = z.enum(PROMPT_TEMPLATE_CATEGORY_VALUES)
-const promptTemplateOptimizedForSchema = z.enum(['Claude', 'ChatGPT', 'Cursor', 'Generic'])
+const promptTemplateCategorySchema = z.enum(PROMPT_TEMPLATE_CATEGORIES)
+const promptTemplateOptimizedForSchema = z.enum(PROMPT_TEMPLATE_TARGETS)
 const promptTemplateVariableSchema = z.object({
   name: z.string(),
   label: z.string(),
@@ -77,8 +64,8 @@ export const noteRowSchema = z
     sort_order: z.number().default(0),
     folder_id: z.string().nullable().optional(),
     deleted_at: z.number().nullable().optional(),
-    task_status: z.enum(['todo', 'in_progress', 'done', 'blocked']).nullable().optional(),
-    task_priority: z.enum(['low', 'medium', 'high']).nullable().optional(),
+    task_status: z.enum(TASK_STATUSES).nullable().optional(),
+    task_priority: z.enum(TASK_PRIORITIES).nullable().optional(),
     task_due_date: z.string().nullable().optional(),
   })
   .transform((row): Note => {
@@ -185,7 +172,7 @@ export const resourceFolderRowSchema = z
     id: z.string(),
     name: z.string(),
     parent_id: z.string().nullable(),
-    kind: z.enum(['notes', 'snippets', 'apiRequests']),
+    kind: z.enum(RESOURCE_FOLDER_KINDS),
     sort_order: z.number(),
     default_language: z.string().nullable(),
     created_at: z.number(),

@@ -1,0 +1,19 @@
+{
+  "_comment": "Closed value sets that the TypeScript app and the Rust MCP service both enforce on the same tables. Both sides assert against this file. The app drops a row whose value falls outside a set, so a value added on one side and forgotten on the other makes data vanish or get rewritten. That fails a test here instead.",
+  "noteColors": ["yellow", "green", "blue", "pink", "purple", "orange", "red", "gray"],
+  "taskStatuses": ["todo", "in_progress", "done", "blocked"],
+  "taskPriorities": ["low", "medium", "high"],
+  "promptTemplateCategories": [
+    "code-review",
+    "refactoring",
+    "testing",
+    "docs",
+    "debugging",
+    "security",
+    "learning",
+    "productivity"
+  ],
+  "promptTemplateTargets": ["Claude", "ChatGPT", "Cursor", "Generic"],
+  "resourceFolderKinds": ["notes", "snippets", "apiRequests"],
+  "systemInboxFolderIds": ["notes-inbox", "snippets-inbox", "api-requests-inbox"]
+}

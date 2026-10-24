@@ -1,21 +1,11 @@
 import { z } from 'zod'
+import { PROMPT_TEMPLATE_CATEGORIES, PROMPT_TEMPLATE_TARGETS } from '@/lib/domain-values'
 import type {
   PromptTemplate,
   PromptTemplateCategory,
   PromptTemplateVariable,
   PromptTemplateVariableType,
 } from '@/types/models'
-
-const PROMPT_TEMPLATE_CATEGORY_VALUES = [
-  'code-review',
-  'refactoring',
-  'testing',
-  'docs',
-  'debugging',
-  'security',
-  'learning',
-  'productivity',
-] as const
 
 /** Apply each limit before database writes start. */
 export const MAX_PROMPT_TEMPLATE_IMPORT_BYTES = 5 * 1024 * 1024
@@ -49,12 +39,12 @@ const importVariableSchema = z
 const importTemplateSchema = z.object({
   name: z.string().min(1).max(MAX_FIELD_CHARS),
   description: z.string().max(MAX_FIELD_CHARS).optional(),
-  category: z.enum(PROMPT_TEMPLATE_CATEGORY_VALUES).default('productivity'),
+  category: z.enum(PROMPT_TEMPLATE_CATEGORIES).default('productivity'),
   tags: z.array(z.string().max(MAX_FIELD_CHARS)).max(MAX_LIST_ITEMS).optional(),
   prompt: z.string().min(1).max(MAX_PROMPT_CHARS),
   variables: z.array(importVariableSchema).max(MAX_LIST_ITEMS).optional(),
   estimatedTokens: z.number().optional(),
-  optimizedFor: z.enum(['Claude', 'ChatGPT', 'Cursor', 'Generic']).default('Generic'),
+  optimizedFor: z.enum(PROMPT_TEMPLATE_TARGETS).default('Generic'),
   version: z.string().max(MAX_FIELD_CHARS).optional(),
   tips: z.array(z.string().max(MAX_FIELD_CHARS)).max(MAX_LIST_ITEMS).optional(),
 })

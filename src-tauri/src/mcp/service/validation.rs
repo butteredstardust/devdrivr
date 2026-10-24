@@ -5,7 +5,8 @@ use uuid::Uuid;
 use super::{
     auth_field, header_text, invalid_api_auth, invalid_api_headers, invalid_argument,
     invalid_prompt_variables, unknown_help_topic, SnippetFragmentInput, BODY_MODES, HELP_TOPICS,
-    HTTP_METHODS,
+    HTTP_METHODS, NOTE_COLORS, TASK_PRIORITIES, TASK_STATUSES, TEMPLATE_CATEGORIES,
+    TEMPLATE_TARGETS,
 };
 
 pub(super) fn normalize_snippet_fragments(
@@ -82,57 +83,42 @@ pub(super) fn validate_default_language(
     Ok(())
 }
 
-pub(super) fn validate_task_status(value: &str) -> std::result::Result<String, McpError> {
-    match value {
-        "todo" | "in_progress" | "done" | "blocked" => Ok(value.to_string()),
-        _ => Err(invalid_argument(
-            "taskStatus",
-            format!("Unsupported task status: {value}"),
-            &["Use one of: todo, in_progress, done, blocked"],
-        )),
+/// Accepts `value` only when it is one of `allowed`, which is one of the sets in `domain_values`.
+fn validate_one_of(
+    argument: &str,
+    label: &str,
+    value: &str,
+    allowed: &[&str],
+) -> std::result::Result<String, McpError> {
+    if allowed.contains(&value) {
+        return Ok(value.to_string());
     }
+    let suggestion = format!("Use one of: {}", allowed.join(", "));
+    Err(invalid_argument(
+        argument,
+        format!("Unsupported {label}: {value}"),
+        &[suggestion.as_str()],
+    ))
+}
+
+pub(super) fn validate_task_status(value: &str) -> std::result::Result<String, McpError> {
+    validate_one_of("taskStatus", "task status", value, &TASK_STATUSES)
 }
 
 pub(super) fn validate_task_priority(value: &str) -> std::result::Result<String, McpError> {
-    match value {
-        "low" | "medium" | "high" => Ok(value.to_string()),
-        _ => Err(invalid_argument(
-            "taskPriority",
-            format!("Unsupported task priority: {value}"),
-            &["Use one of: low, medium, high"],
-        )),
-    }
+    validate_one_of("taskPriority", "task priority", value, &TASK_PRIORITIES)
 }
 
 /// WARNING: Notes skips any row whose colour falls outside this set, so an unchecked write makes
 /// an import look successful while the note never appears in the tool.
 pub(super) fn validate_note_color(value: &str) -> std::result::Result<String, McpError> {
-    match value {
-        "yellow" | "green" | "blue" | "pink" | "purple" | "orange" | "red" | "gray" => {
-            Ok(value.to_string())
-        }
-        _ => Err(invalid_argument(
-            "color",
-            format!("Unsupported note color: {value}"),
-            &["Use one of: yellow, green, blue, pink, purple, orange, red, gray"],
-        )),
-    }
+    validate_one_of("color", "note color", value, &NOTE_COLORS)
 }
 
 /// WARNING: Prompt Templates skips any row whose category falls outside this set, so an unchecked
 /// write makes an import look successful while the template never appears in the tool.
 pub(super) fn validate_template_category(value: &str) -> std::result::Result<String, McpError> {
-    match value {
-        "code-review" | "refactoring" | "testing" | "docs" | "debugging" | "learning"
-        | "productivity" => Ok(value.to_string()),
-        _ => Err(invalid_argument(
-            "category",
-            format!("Unsupported template category: {value}"),
-            &[
-                "Use one of: code-review, refactoring, testing, docs, debugging, learning, productivity",
-            ],
-        )),
-    }
+    validate_one_of("category", "template category", value, &TEMPLATE_CATEGORIES)
 }
 
 /// WARNING: Prompt Templates skips any row whose target falls outside this set. See
@@ -140,14 +126,7 @@ pub(super) fn validate_template_category(value: &str) -> std::result::Result<Str
 pub(super) fn validate_template_optimized_for(
     value: &str,
 ) -> std::result::Result<String, McpError> {
-    match value {
-        "Claude" | "ChatGPT" | "Cursor" | "Generic" => Ok(value.to_string()),
-        _ => Err(invalid_argument(
-            "optimizedFor",
-            format!("Unsupported template target: {value}"),
-            &["Use one of: Claude, ChatGPT, Cursor, Generic"],
-        )),
-    }
+    validate_one_of("optimizedFor", "template target", value, &TEMPLATE_TARGETS)
 }
 
 pub(super) fn validate_task_due_date(value: &str) -> std::result::Result<String, McpError> {
