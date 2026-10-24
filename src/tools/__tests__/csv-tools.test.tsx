@@ -394,7 +394,8 @@ describe('CsvTools', () => {
     fireEvent.click(within(header).getByRole('button'))
 
     await waitFor(() => expect(header).toHaveAttribute('aria-sort', 'ascending'), WAIT)
-  })
+    // Two WAITs in a row need more than the 5 s default test timeout on a loaded runner.
+  }, 15_000)
 
   it('filters table rows without touching the source', async () => {
     renderTool(CsvTools)
