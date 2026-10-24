@@ -177,6 +177,8 @@ jobs:
     needs: [bump, build]
     permissions:
       contents: write
+      # Read the merged PR's description for the release notes.
+      pull-requests: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -310,3 +312,11 @@ jobs:
         run: |
           TAG="devdrivr-v${VERSION}"
           gh release upload "${TAG}" updater.json latest.json --clobber
+
+      # The PR that this push merged carries the notes between its release-notes markers. See
+      # scripts/release-notes.mjs. A push without such a PR keeps the default body.
+      - name: Write release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: node scripts/release-notes.mjs --tag "devdrivr-v${VERSION}" --sha "${{ github.sha }}"
