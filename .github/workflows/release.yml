@@ -19,18 +19,27 @@ on:
       - '.gitignore'
       - '.husky/**'
 
+# Never cancel a release in flight: a cancelled run can leave a release with some platforms'
+# assets uploaded and no update manifest. A newer push waits, and only the newest one waits.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
+  # The same checks a pull request runs. Nothing is bumped, built or published unless they pass.
+  ci:
+    name: 'CI'
+    uses: ./.github/workflows/ci.yml
+
   bump:
     name: 'Auto-increment Version'
+    needs: ci
     permissions:
       contents: write
     runs-on: ubuntu-latest
     outputs:
       new_version: ${{ steps.bump.outputs.new_version }}
+      release_sha: ${{ steps.commit.outputs.sha }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -39,6 +48,8 @@ jobs:
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
 
       - name: Auto-increment version
         id: bump
@@ -46,16 +57,27 @@ jobs:
           node scripts/bump-version.mjs
 
       - name: Commit version bump
+        id: commit
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock
+          # CI ran on this push's commit. If another merge landed while it ran, release nothing: the
+          # bump would no longer fast-forward, and that merge's own run is queued to release it.
+          git fetch origin main
+          if [ "$(git rev-parse origin/main)" != "${GITHUB_SHA}" ]; then
+            echo "main moved past ${GITHUB_SHA}; the queued run for the newer commit releases instead."
+            exit 0
+          fi
           git commit -m "chore(release): bump version to ${{ steps.bump.outputs.new_version }} [skip ci]"
           git push
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   build:
     name: 'Build'
     needs: bump
+    # Empty when the bump step stood down because main moved on.
+    if: needs.bump.outputs.release_sha != ''
     permissions:
       contents: write
     strategy:
@@ -79,9 +101,11 @@ jobs:
     runs-on: ${{ matrix.platform }}
 
     steps:
+      # The bump commit, not `main`: a later merge can move `main` before this job starts, and
+      # that merge has not passed the CI job above.
       - uses: actions/checkout@v7
         with:
-          ref: main # Ensure we pick up the bump-version commit
+          ref: ${{ needs.bump.outputs.release_sha }}
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -102,10 +126,10 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version-file: package.json
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Build and release
         uses: tauri-apps/tauri-action@v0
@@ -150,14 +174,14 @@ jobs:
 
   publish-update-manifest:
     name: 'Publish Update Manifest'
-    needs: build
+    needs: [bump, build]
     permissions:
       contents: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: main
+          ref: ${{ needs.bump.outputs.release_sha }}
 
       - name: Get version
         id: version

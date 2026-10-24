@@ -5,7 +5,7 @@ use crate::mcp::types::McpPermissions;
 ///
 /// Include the shipped files so schema changes reach the tests and cannot diverge from a
 /// hand-written test schema.
-const MIGRATIONS: [&str; 16] = [
+const MIGRATIONS: [&str; 17] = [
     include_str!("../../../migrations/001_initial.sql"),
     include_str!("../../../migrations/002_api_client.sql"),
     include_str!("../../../migrations/003_notes_tags.sql"),
@@ -22,6 +22,7 @@ const MIGRATIONS: [&str; 16] = [
     include_str!("../../../migrations/015_note_tasks.sql"),
     include_str!("../../../migrations/016_note_links.sql"),
     include_str!("../../../migrations/017_snippet_fragments.sql"),
+    include_str!("../../../migrations/019_prompt_template_category_repair.sql"),
 ];
 
 fn resource_permissions(
@@ -503,6 +504,85 @@ mod api_request_contract {
             .await
             .expect("count");
         assert_eq!(count, 0);
+    }
+}
+
+mod domain_contract {
+    use super::*;
+
+    fn contract() -> Value {
+        serde_json::from_str(include_str!("../../../../shared/domain-contract.json"))
+            .expect("shared domain contract")
+    }
+
+    /// The app drops a row whose value falls outside these sets. A value added to one side and
+    /// forgotten on the other fails here instead of making a user's data vanish.
+    #[test]
+    fn the_rust_value_sets_match_the_shared_contract() {
+        let contract = contract();
+        assert_eq!(contract["noteColors"], json!(NOTE_COLORS));
+        assert_eq!(contract["taskStatuses"], json!(TASK_STATUSES));
+        assert_eq!(contract["taskPriorities"], json!(TASK_PRIORITIES));
+        assert_eq!(
+            contract["promptTemplateCategories"],
+            json!(TEMPLATE_CATEGORIES)
+        );
+        assert_eq!(contract["promptTemplateTargets"], json!(TEMPLATE_TARGETS));
+        assert_eq!(contract["resourceFolderKinds"], json!(FOLDER_KINDS));
+        assert_eq!(contract["systemInboxFolderIds"], json!(SYSTEM_INBOX_IDS));
+    }
+
+    #[test]
+    fn every_contract_value_passes_its_validator() {
+        let contract = contract();
+        let values = |key: &str| -> Vec<String> {
+            contract[key]
+                .as_array()
+                .expect("array")
+                .iter()
+                .map(|value| value.as_str().expect("string").to_string())
+                .collect()
+        };
+        for color in values("noteColors") {
+            assert_eq!(validate_note_color(&color).expect("color"), color);
+        }
+        for status in values("taskStatuses") {
+            assert_eq!(validate_task_status(&status).expect("status"), status);
+        }
+        for priority in values("taskPriorities") {
+            assert_eq!(
+                validate_task_priority(&priority).expect("priority"),
+                priority
+            );
+        }
+        for category in values("promptTemplateCategories") {
+            assert_eq!(
+                validate_template_category(&category).expect("category"),
+                category
+            );
+            // An update that leaves the category alone must keep it, not reset it to the default.
+            assert_eq!(heal_template_category(&category), category);
+        }
+        for target in values("promptTemplateTargets") {
+            assert_eq!(
+                validate_template_optimized_for(&target).expect("target"),
+                target
+            );
+        }
+        for kind in values("resourceFolderKinds") {
+            assert_eq!(parse_folder_kind(&kind).expect("kind"), kind);
+        }
+        for id in values("systemInboxFolderIds") {
+            assert!(is_system_inbox(&id), "{id} is a system inbox");
+        }
+    }
+
+    #[test]
+    fn a_rejected_value_lists_the_whole_set() {
+        let error = validate_template_category("general").expect_err("unknown category");
+        let data = error.data.expect("data");
+        assert_eq!(data["argument"], "category");
+        assert!(data.to_string().contains("security"), "{data}");
     }
 }
 

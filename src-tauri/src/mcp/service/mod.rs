@@ -18,6 +18,7 @@ mod access;
 mod api_requests;
 mod args;
 mod discovery;
+mod domain_values;
 mod errors;
 mod fetch;
 mod folder_store;
@@ -33,6 +34,7 @@ mod trash;
 mod validation;
 
 use args::*;
+use domain_values::*;
 use errors::*;
 use paging::*;
 use request_fields::*;
@@ -55,7 +57,6 @@ const MAX_ARGUMENT_DEPTH: usize = 32;
 /// when something is stuck.
 const TOOL_TIMEOUT: Duration = Duration::from_secs(30);
 const FOLDER_SORT_STEP: f64 = 1000.0;
-const SYSTEM_INBOX_IDS: [&str; 3] = ["notes-inbox", "snippets-inbox", "api-requests-inbox"];
 const HELP_TOPICS: [&str; 7] = [
     "overview",
     "tools",

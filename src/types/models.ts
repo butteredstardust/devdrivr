@@ -1,5 +1,14 @@
-import { NOTE_COLORS } from '@/lib/schemas'
+import {
+  NOTE_COLORS,
+  PROMPT_TEMPLATE_CATEGORIES,
+  PROMPT_TEMPLATE_TARGETS,
+  RESOURCE_FOLDER_KINDS,
+  TASK_PRIORITIES,
+  TASK_STATUSES,
+} from '@/lib/domain-values'
 import type { ToolGroup } from '@/types/tools'
+
+export { PROMPT_TEMPLATE_CATEGORIES }
 
 export type Theme =
   | 'system'
@@ -181,17 +190,6 @@ export type SnippetFragment = {
   updatedAt: number
 }
 
-export const PROMPT_TEMPLATE_CATEGORIES = [
-  'code-review',
-  'refactoring',
-  'testing',
-  'docs',
-  'debugging',
-  'security',
-  'learning',
-  'productivity',
-] as const
-
 export type PromptTemplateCategory = (typeof PROMPT_TEMPLATE_CATEGORIES)[number]
 
 export type PromptTemplateVariableType = 'text' | 'textarea' | 'select'
@@ -218,7 +216,7 @@ export type PromptTemplate = {
   prompt: string
   variables: PromptTemplateVariable[]
   estimatedTokens: number
-  optimizedFor: 'Claude' | 'ChatGPT' | 'Cursor' | 'Generic'
+  optimizedFor: (typeof PROMPT_TEMPLATE_TARGETS)[number]
   author: 'builtin' | 'user'
   version: string
   tips?: string[]
@@ -229,8 +227,8 @@ export type PromptTemplate = {
 export type PromptTemplateValues = Record<string, string>
 
 export type NoteColor = (typeof NOTE_COLORS)[number]
-export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'blocked'
-export type TaskPriority = 'low' | 'medium' | 'high'
+export type TaskStatus = (typeof TASK_STATUSES)[number]
+export type TaskPriority = (typeof TASK_PRIORITIES)[number]
 
 export type Note = {
   id: string
@@ -260,7 +258,7 @@ export type Note = {
   taskDueDate?: string
 }
 
-export type ResourceKind = 'notes' | 'snippets' | 'apiRequests'
+export type ResourceKind = (typeof RESOURCE_FOLDER_KINDS)[number]
 
 export type ResourceFolder = {
   id: string
