@@ -4,7 +4,7 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { readFile, stat } from '@tauri-apps/plugin-fs'
 import { MAX_NOTE_IMAGE_BYTES } from '@/lib/file-limits'
 import { importNoteImage } from '@/lib/note-assets'
-import type { EditorInstance } from '@/tools/markdown-editor/markdown-model'
+import type { EditorInstance } from '@/lib/markdown-model'
 
 const SUPPORTED_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp'])
 

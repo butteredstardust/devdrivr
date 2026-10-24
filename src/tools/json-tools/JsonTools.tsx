@@ -53,14 +53,14 @@ import {
   locateJsonError,
   toText,
   type ParseResult,
-} from '@/tools/json-tools/json-model'
+} from '@/lib/json-model'
 import { InspectorPane } from '@/tools/json-tools/JsonInspector'
 
 // Re-exported for consumers that grew up with this being one file: YAML Tools renders the table,
 // and the tests reach for the parse helpers.
-export { isTabularJsonArray, locateJsonError, normalizeJsonc } from '@/tools/json-tools/json-model'
-export { JsonTable } from '@/tools/json-tools/JsonTable'
-export { JsonTree } from '@/tools/json-tools/JsonTree'
+export { isTabularJsonArray, locateJsonError, normalizeJsonc } from '@/lib/json-model'
+export { JsonTable } from '@/components/shared/JsonTable'
+export { JsonTree } from '@/components/shared/JsonTree'
 
 type JsonToolsState = {
   input: string

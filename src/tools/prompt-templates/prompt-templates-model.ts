@@ -1,10 +1,7 @@
 import type { PromptTemplateDraft } from '@/lib/prompt-template-transfer'
 import { PROMPT_TEMPLATE_TARGETS } from '@/lib/domain-values'
 import { isPlainObject } from '@/lib/tool-state-merge'
-import {
-  BUILTIN_PROMPT_TEMPLATES,
-  CATEGORY_LABELS,
-} from '@/tools/prompt-templates/builtin-templates'
+import { BUILTIN_PROMPT_TEMPLATES, CATEGORY_LABELS } from '@/lib/prompt-template-builtins'
 import type {
   PromptTemplate,
   PromptTemplateCategory,

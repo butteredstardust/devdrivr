@@ -1,4 +1,4 @@
-import { TEMPLATE_DATE } from '@/tools/markdown-editor/markdown-model'
+import { TEMPLATE_DATE } from '@/lib/markdown-model'
 
 /** The starter documents offered by the editor's Templates menu. */
 export const TEMPLATES: { label: string; content: string }[] = [

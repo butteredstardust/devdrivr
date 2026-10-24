@@ -3,14 +3,14 @@ import { usePromptTemplatesBackup } from '@/hooks/usePromptTemplatesBackup'
 import type { PromptTemplateDraft } from '@/lib/prompt-template-transfer'
 import { usePromptTemplatesStore } from '@/stores/prompt-templates.store'
 import { useUiStore } from '@/stores/ui.store'
-import { BUILTIN_PROMPT_TEMPLATES } from '@/tools/prompt-templates/builtin-templates'
+import { BUILTIN_PROMPT_TEMPLATES } from '@/lib/prompt-template-builtins'
 import {
   FILTERS,
   getTemplateById,
   type CategoryFilter,
   type PromptTemplatesState,
 } from '@/tools/prompt-templates/prompt-templates-model'
-import { mergeDefaultValues, templateSearchText } from '@/tools/prompt-templates/template-utils'
+import { mergeDefaultValues, templateSearchText } from '@/lib/prompt-template-utils'
 import type { PromptTemplate } from '@/tools/prompt-templates/types'
 
 type UpdatePromptTemplatesState = (patch: Partial<PromptTemplatesState>) => void

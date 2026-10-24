@@ -16,14 +16,14 @@ import { SectionLabel } from '@/components/shared/SectionLabel'
 import { TextArea } from '@/components/shared/TextArea'
 import { useModalFocus } from '@/hooks/useModalFocus'
 import { templateToDraft, type PromptTemplateDraft } from '@/lib/prompt-template-transfer'
-import { CATEGORY_LABELS } from '@/tools/prompt-templates/builtin-templates'
+import { CATEGORY_LABELS } from '@/lib/prompt-template-builtins'
 import {
   joinList,
   OPTIMIZED_FOR_OPTIONS,
   splitList,
   VARIABLE_TYPE_OPTIONS,
 } from '@/tools/prompt-templates/prompt-templates-model'
-import { estimateTokens, syncVariablesToPrompt } from '@/tools/prompt-templates/template-utils'
+import { estimateTokens, syncVariablesToPrompt } from '@/lib/prompt-template-utils'
 import type {
   PromptTemplate,
   PromptTemplateCategory,

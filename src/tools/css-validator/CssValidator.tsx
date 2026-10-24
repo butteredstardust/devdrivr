@@ -18,12 +18,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
-import {
-  TEMPLATES,
-  countRuleOverrides,
-  toggleRule,
-  type RuleConfig,
-} from '@/tools/css-validator/css-helpers'
+import { TEMPLATES, countRuleOverrides, toggleRule, type RuleConfig } from '@/lib/css-helpers'
 import {
   syntaxFromFilename,
   type CssValidatorState,

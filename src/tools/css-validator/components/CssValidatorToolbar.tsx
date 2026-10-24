@@ -13,7 +13,7 @@ import { Select } from '@/components/shared/Input'
 import { Kbd } from '@/components/shared/Kbd'
 import { DocumentIdentity, DocumentToolbar, ToolbarGroup } from '@/components/shared/Toolbar'
 import { formatShortcut } from '@/lib/shortcut-label'
-import { TEMPLATES, type RuleConfig } from '@/tools/css-validator/css-helpers'
+import { TEMPLATES, type RuleConfig } from '@/lib/css-helpers'
 import {
   type CssValidatorState,
   type UpdateCssValidatorState,

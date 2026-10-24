@@ -68,6 +68,7 @@ Use the output of `dirname "$(which bun)"` when Bun is elsewhere. This prefix fi
 
 - Title: Match the commit message format. Keep it under 70 chars.
 - Body: Use **Summary** bullets in user-facing language. Add a **Test plan** checklist.
+- Release notes: A merge to `main` ships a release. Put its notes in the PR body between `<!-- release-notes -->` and `<!-- /release-notes -->`, in the style of earlier releases. The release workflow copies them onto the release. To rewrite them later, edit the PR and run the **Release notes** workflow with the tag and PR number.
 - Target: Use `main`.
 - New branches: Push with `-u`: `git push -u origin feat/my-feature`.
 - Never force-push to `main`.
@@ -567,6 +568,40 @@ onChange={() => { void saveToDb(value) }}
 // ❌ Returns a Promise that is silently dropped — triggers lint/runtime warning
 onMouseDown={() => handleAsyncAction()}
 ```
+
+### 30. Tools do not import other tools
+
+A tool in `src/tools/<id>/` is a plugin that only the app shell loads. Another tool, a store, a hook or a shared component must not import from it. Put code that more than one place needs in `src/lib`, `src/hooks` or `src/components/shared`. The exceptions are `src/app` (the registry and preloads), a tool's own worker in `src/workers`, and tests.
+
+The raw-`<button>`/`<select>` lint rule covers `src/tools/**` only, so a component moved into `src/components/shared` leaves it. Keep the reason for any raw element there as a comment beside it, as `JsonTree.tsx` does.
+
+```typescript
+// ✅
+import { LANGUAGES } from '@/lib/languages'
+import { MarkdownPreview } from '@/components/shared/MarkdownPreview'
+
+// ❌ Fails `devdrivr/tool-boundaries` in `bun run lint`
+import { LANGUAGES } from '@/tools/code-formatter/languages'
+```
+
+### 31. Repository tests use the real-migration database
+
+Test `src/lib/db/*` against SQLite with every shipped migration applied, not against a mock that returns `[]`. Assert on what a later load returns, not on the SQL text:
+
+```typescript
+vi.mock(
+  '@tauri-apps/plugin-sql',
+  async () => (await import('@/test-utils/sqlite-db')).sqlitePluginModule
+)
+vi.mock(
+  '@tauri-apps/api/core',
+  async () => (await import('@/test-utils/sqlite-db')).sqliteCoreModule
+)
+
+const database = useSqliteTestDatabase() // fresh database and fresh `@/lib/db` for each test
+```
+
+Keep a mock only to test transport, such as the write queue's ordering. `db.core.test.ts` and `db.notes.test.ts` do this.
 
 ---
 

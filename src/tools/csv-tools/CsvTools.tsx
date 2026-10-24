@@ -52,7 +52,7 @@ import { formatTextBytes } from '@/lib/format'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { formatShortcut } from '@/lib/shortcut-label'
 import { sendToTool } from '@/lib/tool-handoff'
-import { inferSchema } from '@/tools/json-schema-validator/json-schema-helpers'
+import { inferSchema } from '@/lib/json-schema-helpers'
 import { ProblemsList, type ProblemItem } from '@/components/shared/ProblemsList'
 
 type CsvView = 'table' | 'convert' | 'analyze'

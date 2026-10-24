@@ -1,11 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { Note } from '@/types/models'
+import { useSqliteTestDatabase } from '@/test-utils/sqlite-db'
 
-const sqlMock = vi.hoisted(() => ({ execute: vi.fn(), select: vi.fn(), load: vi.fn() }))
-const coreMock = vi.hoisted(() => ({ invoke: vi.fn() }))
+vi.mock(
+  '@tauri-apps/plugin-sql',
+  async () => (await import('@/test-utils/sqlite-db')).sqlitePluginModule
+)
+vi.mock(
+  '@tauri-apps/api/core',
+  async () => (await import('@/test-utils/sqlite-db')).sqliteCoreModule
+)
 
-vi.mock('@tauri-apps/plugin-sql', () => ({ default: { load: sqlMock.load } }))
-vi.mock('@tauri-apps/api/core', () => ({ invoke: coreMock.invoke }))
+const database = useSqliteTestDatabase()
 
 function note(id: string, content: string): Note {
   return {
@@ -23,18 +29,19 @@ function note(id: string, content: string): Note {
   }
 }
 
-describe('wiki link persistence', () => {
-  beforeEach(() => {
-    vi.resetModules()
-    vi.clearAllMocks()
-    sqlMock.execute.mockResolvedValue({ rowsAffected: 0, lastInsertId: 0 })
-    sqlMock.select.mockResolvedValue([])
-    sqlMock.load.mockResolvedValue({ execute: sqlMock.execute, select: sqlMock.select })
-    coreMock.invoke.mockResolvedValue(undefined)
-  })
+async function links(): Promise<Array<[string, string, string]>> {
+  const rows = await database().connection.select<
+    Array<{ source_note_id: string; target_kind: string; target_id: string }>
+  >(
+    'SELECT source_note_id, target_kind, target_id FROM note_links ORDER BY source_note_id, target_kind, target_id'
+  )
+  return rows.map((row) => [row.source_note_id, row.target_kind, row.target_id])
+}
 
-  it('saves a note and replaces its deduplicated outgoing-link index atomically', async () => {
+describe('wiki link index', () => {
+  it('indexes each stable target once and ignores title-only links', async () => {
     const { saveNote } = await import('@/lib/db')
+
     await saveNote(
       note(
         'source',
@@ -42,35 +49,31 @@ describe('wiki link persistence', () => {
       )
     )
 
-    const [, payload] = coreMock.invoke.mock.calls[0] as [
-      string,
-      { immediate: boolean; statements: Array<{ sql: string; params: unknown[] }> },
-    ]
-    expect(payload.immediate).toBe(true)
-    expect(payload.statements[0]?.sql).toContain('INSERT INTO notes')
-    expect(payload.statements[1]).toEqual({
-      sql: 'DELETE FROM note_links WHERE source_note_id = $1',
-      params: ['source'],
-    })
-    expect(payload.statements.slice(2).map((statement) => statement.params.slice(0, 3))).toEqual([
+    expect(await links()).toEqual([
       ['source', 'note', 'target'],
       ['source', 'snippet', 'helper'],
     ])
   })
 
-  it('rebuilds legacy stable-link content while ignoring title-only brackets', async () => {
-    const { rebuildNoteLinks } = await import('@/lib/db')
-    await rebuildNoteLinks([
-      note('one', '[[api-request:req-1|Users]]'),
-      note('two', 'Legacy [[Users]]'),
-    ])
+  it('replaces a note’s links when it is saved again', async () => {
+    const { saveNote } = await import('@/lib/db')
+    await saveNote(note('source', '[[note:old|Old]]'))
 
-    const [, payload] = coreMock.invoke.mock.calls[0] as [
-      string,
-      { statements: Array<{ sql: string; params: unknown[] }> },
-    ]
-    expect(payload.statements[0]).toEqual({ sql: 'DELETE FROM note_links', params: [] })
-    expect(payload.statements).toHaveLength(2)
-    expect(payload.statements[1]?.params.slice(0, 3)).toEqual(['one', 'api-request', 'req-1'])
+    await saveNote(note('source', '[[snippet:new|New]]'))
+
+    expect(await links()).toEqual([['source', 'snippet', 'new']])
+  })
+
+  it('rebuilds the whole index from note content', async () => {
+    const { rebuildNoteLinks, saveNote } = await import('@/lib/db')
+    const one = note('one', '[[api-request:req-1|Users]]')
+    const two = note('two', 'Legacy [[Users]]')
+    await saveNote(note('stale', '[[note:gone|Gone]]'))
+    await saveNote(one)
+    await saveNote(two)
+
+    await rebuildNoteLinks([one, two])
+
+    expect(await links()).toEqual([['one', 'api-request', 'req-1']])
   })
 })

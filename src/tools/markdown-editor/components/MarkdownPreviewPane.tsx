@@ -1,10 +1,6 @@
 import type { RefObject } from 'react'
-import { MarkdownPreview } from '@/tools/markdown-editor/MarkdownPreview'
-import type {
-  MarkdownEditorState,
-  TocEntry,
-  UpdateMarkdownEditorState,
-} from '@/tools/markdown-editor/markdown-model'
+import { MarkdownPreview } from '@/components/shared/MarkdownPreview'
+import type { MarkdownEditorState, TocEntry, UpdateMarkdownEditorState } from '@/lib/markdown-model'
 
 type MarkdownPreviewPaneProps = {
   previewRef: RefObject<HTMLDivElement | null>

@@ -8,7 +8,7 @@ import {
   type MarkdownEditorState,
   type PendingDocument,
   type UpdateMarkdownEditorState,
-} from '@/tools/markdown-editor/markdown-model'
+} from '@/lib/markdown-model'
 
 type UseMarkdownDocumentOptions = {
   state: MarkdownEditorState

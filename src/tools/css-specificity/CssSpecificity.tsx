@@ -8,7 +8,7 @@ import { ToolLayout } from '@/components/shared/ToolLayout'
 import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolbar'
 import { TextArea } from '@/components/shared/TextArea'
 import * as cssTree from 'css-tree'
-import { specificityDetailOf } from '@/tools/css-validator/css-helpers'
+import { specificityDetailOf } from '@/lib/css-helpers'
 
 // ── Types ────────────────────────────────────────────────────────────
 

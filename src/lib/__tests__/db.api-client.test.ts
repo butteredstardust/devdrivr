@@ -1,22 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ApiCollection, ApiEnvironment, ApiRequest } from '@/types/models'
+import { useSqliteTestDatabase } from '@/test-utils/sqlite-db'
 
-const sqlMock = vi.hoisted(() => ({
-  execute: vi.fn(),
-  select: vi.fn(),
-  load: vi.fn(),
-}))
+vi.mock(
+  '@tauri-apps/plugin-sql',
+  async () => (await import('@/test-utils/sqlite-db')).sqlitePluginModule
+)
+vi.mock(
+  '@tauri-apps/api/core',
+  async () => (await import('@/test-utils/sqlite-db')).sqliteCoreModule
+)
 
-vi.mock('@tauri-apps/plugin-sql', () => ({
-  default: {
-    load: sqlMock.load,
-  },
-}))
-
-const coreMock = vi.hoisted(() => ({ invoke: vi.fn() }))
-vi.mock('@tauri-apps/api/core', () => ({ invoke: coreMock.invoke }))
-
-type BatchPayload = { statements: Array<{ sql: string; params: unknown[] }>; immediate: boolean }
+const database = useSqliteTestDatabase()
 
 const environment: ApiEnvironment = {
   id: 'env-1',
@@ -47,126 +42,47 @@ const request: ApiRequest = {
   updatedAt: 6,
 }
 
-describe('API Client DB helpers', () => {
-  beforeEach(() => {
-    vi.resetModules()
-    vi.clearAllMocks()
-    coreMock.invoke.mockResolvedValue(undefined)
-    sqlMock.execute.mockResolvedValue({ rowsAffected: 0, lastInsertId: 0 })
-    sqlMock.load.mockResolvedValue({
-      execute: sqlMock.execute,
-      select: sqlMock.select,
-    })
+describe('API Client persistence', () => {
+  it('round-trips environments, collections and requests intact', async () => {
+    const db = await import('@/lib/db')
+
+    await db.saveApiEnvironment(environment)
+    await db.saveApiCollection(collection)
+    await db.saveApiRequest(request)
+
+    await expect(db.loadApiEnvironments()).resolves.toEqual([environment])
+    expect((await db.loadApiCollections()).find((c) => c.id === collection.id)).toMatchObject(
+      collection
+    )
+    await expect(db.loadApiRequests()).resolves.toEqual([request])
   })
 
-  it('serializes complete environment and request records on save', async () => {
-    const { saveApiEnvironment, saveApiRequest } = await import('@/lib/db')
+  it('imports collections before the requests that reference them', async () => {
+    const db = await import('@/lib/db')
 
-    await saveApiEnvironment(environment)
-    await saveApiRequest(request)
+    await db.saveApiImport([collection], [request], [environment], environment.id)
 
-    expect(sqlMock.execute).toHaveBeenCalledWith(expect.stringContaining('api_environments'), [
-      environment.id,
-      environment.name,
-      JSON.stringify(environment.variables),
-      environment.createdAt,
-      environment.updatedAt,
-    ])
-    expect(sqlMock.execute).toHaveBeenCalledWith(expect.stringContaining('api_requests'), [
-      request.id,
-      request.collectionId,
-      request.name,
-      request.method,
-      request.url,
-      JSON.stringify(request.headers),
-      request.body,
-      request.bodyMode,
-      JSON.stringify(request.auth),
-      request.createdAt,
-      request.updatedAt,
-      null,
-    ])
+    await expect(db.loadApiRequests()).resolves.toEqual([request])
+    await expect(db.loadApiEnvironments()).resolves.toEqual([environment])
+    await expect(db.getSetting<string | null>('apiActiveEnvironmentId', null)).resolves.toBe(
+      environment.id
+    )
   })
 
-  it('loads headers, auth, body mode, variables, and collection relationships intact', async () => {
-    sqlMock.select
-      .mockResolvedValueOnce([
-        {
-          id: environment.id,
-          name: environment.name,
-          variables: JSON.stringify(environment.variables),
-          created_at: environment.createdAt,
-          updated_at: environment.updatedAt,
-        },
-      ])
-      .mockResolvedValueOnce([
-        {
-          id: collection.id,
-          name: collection.name,
-          created_at: collection.createdAt,
-          updated_at: collection.updatedAt,
-        },
-      ])
-      .mockResolvedValueOnce([
-        {
-          id: request.id,
-          collection_id: request.collectionId,
-          name: request.name,
-          method: request.method,
-          url: request.url,
-          headers: JSON.stringify(request.headers),
-          body: request.body,
-          body_mode: request.bodyMode,
-          auth: JSON.stringify(request.auth),
-          created_at: request.createdAt,
-          updated_at: request.updatedAt,
-        },
-      ])
-    const { loadApiCollections, loadApiEnvironments, loadApiRequests } = await import('@/lib/db')
+  it('writes nothing from an import when one request fails', async () => {
+    const db = await import('@/lib/db')
+    const broken = { ...request, id: 'request-2', name: null as unknown as string }
 
-    await expect(loadApiEnvironments()).resolves.toEqual([environment])
-    await expect(loadApiCollections()).resolves.toEqual([collection])
-    await expect(loadApiRequests()).resolves.toEqual([request])
-  })
+    await expect(db.saveApiImport([collection], [request, broken])).rejects.toThrow(
+      'NOT NULL constraint failed'
+    )
 
-  it('saves imports through the atomic batch command, collections before requests', async () => {
-    const { saveApiImport } = await import('@/lib/db')
-
-    await saveApiImport([collection], [request])
-
-    // The whole import is one command invocation, so the Rust side can wrap it in a
-    // single transaction on a single connection. Nothing is written via the plugin pool.
-    expect(coreMock.invoke).toHaveBeenCalledTimes(1)
-    const [command, payload] = coreMock.invoke.mock.calls[0] as [string, BatchPayload]
-    expect(command).toBe('db_execute_batch')
-    expect(payload.immediate).toBe(false)
-    expect(payload.statements.map((s) => s.sql.trim())).toEqual([
-      expect.stringContaining('INSERT INTO resource_folders'),
-      expect.stringContaining('INSERT INTO api_collections'),
-      expect.stringContaining('INSERT INTO api_requests'),
-    ])
-    expect(payload.statements[2]?.params[1]).toBe(collection.id)
-
-    const pluginStatements = sqlMock.execute.mock.calls.map(([sql]) => String(sql).trim())
-    expect(pluginStatements).not.toContain('BEGIN TRANSACTION')
-    expect(pluginStatements).not.toContain('COMMIT')
-  })
-
-  it('propagates a failed import batch instead of leaving partial state claims', async () => {
-    coreMock.invoke.mockRejectedValueOnce(new Error('Batch statement failed: request write failed'))
-    const { saveApiImport } = await import('@/lib/db')
-
-    await expect(saveApiImport([collection], [request])).rejects.toThrow('request write failed')
-    // Rollback is the Rust transaction's job — JS must not emit ROLLBACK on a pooled
-    // connection that may never have had a transaction open on it.
-    expect(sqlMock.execute).not.toHaveBeenCalledWith('ROLLBACK')
-  })
-
-  it('does not invoke the batch command for an empty import', async () => {
-    const { saveApiImport } = await import('@/lib/db')
-
-    await saveApiImport([], [])
-
-    expect(coreMock.invoke).not.toHaveBeenCalled()
+    const requests = await database().connection.select<unknown[]>('SELECT id FROM api_requests')
+    const collections = await database().connection.select<unknown[]>(
+      'SELECT id FROM api_collections WHERE id = $1',
+      [collection.id]
+    )
+    expect(requests).toEqual([])
+    expect(collections).toEqual([])
   })
 })

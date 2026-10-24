@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { readTextWithLimit } from '@/lib/http-body'
 import { useUiStore } from '@/stores/ui.store'
-import { parseJson, type JsonSchemaState } from '@/tools/json-schema-validator/json-schema-helpers'
+import { parseJson, type JsonSchemaState } from '@/lib/json-schema-helpers'
 import {
   MAX_REMOTE_SCHEMA_BYTES,
   resolveRemoteRefs,

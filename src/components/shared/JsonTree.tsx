@@ -1,7 +1,7 @@
 /** The collapsible tree rendering of a parsed JSON document. */
 import { useCallback, useState, type ReactNode } from 'react'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
-import { toText } from '@/tools/json-tools/json-model'
+import { toText } from '@/lib/json-model'
 
 export function TreeValueButton({
   children,
@@ -15,7 +15,7 @@ export function TreeValueButton({
   label: string
 }) {
   return (
-    // eslint-disable-next-line no-restricted-syntax -- inline click-to-copy token inside the syntax-highlighted tree; it must inherit the caller's value colour and monospace metrics, which every Button variant would override.
+    // A raw button on purpose: inline click-to-copy token inside the syntax-highlighted tree; it must inherit the caller's value colour and monospace metrics, which every Button variant would override.
     <button
       type="button"
       onClick={onClick}
@@ -101,7 +101,7 @@ export function JsonTree({
   return (
     <div className="ml-4">
       <div className="flex items-center gap-1">
-        {/* eslint-disable-next-line no-restricted-syntax -- tree disclosure row: a bare
+        {/* A raw button on purpose: tree disclosure row: a bare
             ▼/▶/• glyph aligned to the monospace indent grid, not an action button. */}
         <button
           type="button"
@@ -113,7 +113,7 @@ export function JsonTree({
         >
           {hasChildren ? (expanded ? '▼' : '▶') : '•'}
         </button>
-        {/* eslint-disable-next-line no-restricted-syntax -- inline copy-path affordance
+        {/* A raw button on purpose: inline copy-path affordance
             rendered as part of the tree row's monospace text ([n] / {n}), not a control. */}
         <button
           type="button"

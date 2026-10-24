@@ -1,6 +1,7 @@
 import { EmptyState } from '@/components/shared/EmptyState'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
-import { JsonTable, isTabularJsonArray } from '@/tools/json-tools/JsonTools'
+import { JsonTable } from '@/components/shared/JsonTable'
+import { isTabularJsonArray } from '@/lib/json-model'
 
 export function TablePane({ documents }: { documents: unknown[] }) {
   const copy = useCopyToClipboard()

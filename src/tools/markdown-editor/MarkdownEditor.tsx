@@ -19,7 +19,7 @@ import { useMarkdownExport } from '@/tools/markdown-editor/hooks/useMarkdownExpo
 import { useMarkdownFormatting } from '@/tools/markdown-editor/hooks/useMarkdownFormatting'
 import { useMarkdownListEditing } from '@/tools/markdown-editor/hooks/useMarkdownListEditing'
 import { useMarkdownSmartPaste } from '@/tools/markdown-editor/hooks/useMarkdownSmartPaste'
-import { useScrollSync } from '@/tools/markdown-editor/hooks/useScrollSync'
+import { useScrollSync } from '@/hooks/useScrollSync'
 import {
   type EditorInstance,
   type EditorMode,
@@ -28,12 +28,12 @@ import {
   readingTime,
   renderEditableMarkdownContent,
   validateMarkdownEditorState,
-} from '@/tools/markdown-editor/markdown-model'
-import { toggleTaskAtIndex } from '@/tools/markdown-editor/task-list'
+} from '@/lib/markdown-model'
+import { toggleTaskAtIndex } from '@/lib/markdown-task-list'
 
 // Re-exported because the tests (and lib/markdown's parity test) have always reached for the
 // renderer through the tool's entry point.
-export { prefixMarkdownLines, renderMarkdownContent } from '@/tools/markdown-editor/markdown-model'
+export { prefixMarkdownLines, renderMarkdownContent } from '@/lib/markdown-model'
 
 // ─── Component ───────────────────────────────────────────────────────
 

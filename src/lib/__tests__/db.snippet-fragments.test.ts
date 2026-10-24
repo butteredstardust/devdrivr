@@ -1,18 +1,24 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ResourceFolder, Snippet } from '@/types/models'
+import { useSqliteTestDatabase } from '@/test-utils/sqlite-db'
 
-const sqlMock = vi.hoisted(() => ({ execute: vi.fn(), select: vi.fn(), load: vi.fn() }))
-const coreMock = vi.hoisted(() => ({ invoke: vi.fn() }))
+vi.mock(
+  '@tauri-apps/plugin-sql',
+  async () => (await import('@/test-utils/sqlite-db')).sqlitePluginModule
+)
+vi.mock(
+  '@tauri-apps/api/core',
+  async () => (await import('@/test-utils/sqlite-db')).sqliteCoreModule
+)
 
-vi.mock('@tauri-apps/plugin-sql', () => ({ default: { load: sqlMock.load } }))
-vi.mock('@tauri-apps/api/core', () => ({ invoke: coreMock.invoke }))
+const database = useSqliteTestDatabase()
 
-function snippet(): Snippet {
+function snippet(overrides: Partial<Snippet> = {}): Snippet {
   return {
     id: 'snippet-1',
     title: 'Client examples',
-    content: 'legacy mirror',
-    language: 'text',
+    content: 'fetch(url)',
+    language: 'typescript',
     description: 'Use these together.',
     fragments: [
       {
@@ -40,46 +46,48 @@ function snippet(): Snippet {
     folderId: 'snippets-inbox',
     createdAt: 1,
     updatedAt: 2,
+    ...overrides,
   }
 }
 
-describe('snippet fragment persistence', () => {
-  beforeEach(() => {
-    vi.resetModules()
-    vi.clearAllMocks()
-    sqlMock.execute.mockResolvedValue({ rowsAffected: 0, lastInsertId: 0 })
-    sqlMock.select.mockResolvedValue([])
-    sqlMock.load.mockResolvedValue({ execute: sqlMock.execute, select: sqlMock.select })
-    coreMock.invoke.mockResolvedValue(undefined)
-  })
+describe('snippet fragments', () => {
+  it('round-trips a snippet with its ordered fragments and description', async () => {
+    const { loadSnippet, saveSnippet } = await import('@/lib/db')
 
-  it('saves the snippet and all ordered fragments atomically', async () => {
-    const { saveSnippet } = await import('@/lib/db')
     await saveSnippet(snippet())
 
-    const [, payload] = coreMock.invoke.mock.calls[0] as [
-      string,
-      { immediate: boolean; statements: Array<{ sql: string; params: unknown[] }> },
-    ]
-    expect(payload.immediate).toBe(true)
-    expect(payload.statements[0]?.sql).toContain('description=$5')
-    expect(payload.statements[0]?.params.slice(2, 6)).toEqual([
-      'fetch(url)',
-      'typescript',
-      'Use these together.',
-      '[]',
-    ])
-    expect(payload.statements[1]).toEqual({
-      sql: 'DELETE FROM snippet_fragments WHERE snippet_id = $1',
-      params: ['snippet-1'],
-    })
-    expect(payload.statements.slice(2).map((statement) => statement.params.slice(0, 6))).toEqual([
-      ['fragment-1', 'snippet-1', 'client.ts', 'fetch(url)', 'typescript', 0],
-      ['fragment-2', 'snippet-1', 'styles.css', '.root {}', 'css', 1],
-    ])
+    const loaded = await loadSnippet('snippet-1')
+    expect(loaded?.description).toBe('Use these together.')
+    expect(loaded?.fragments?.map((fragment) => fragment.name)).toEqual(['client.ts', 'styles.css'])
   })
 
-  it('imports folders and snippets in one immediate transaction', async () => {
+  it('mirrors the first fragment into the legacy content and language columns', async () => {
+    const { loadSnippets, saveSnippet } = await import('@/lib/db')
+
+    await saveSnippet(snippet({ content: 'stale mirror', language: 'text' }))
+
+    const [loaded] = await loadSnippets()
+    expect(loaded).toMatchObject({ content: 'fetch(url)', language: 'typescript' })
+  })
+
+  it('replaces the fragment set on save, dropping a removed fragment', async () => {
+    const { loadSnippet, saveSnippet } = await import('@/lib/db')
+    const original = snippet()
+    await saveSnippet(original)
+
+    await saveSnippet({ ...original, fragments: original.fragments?.slice(1) ?? [] })
+
+    expect((await loadSnippet('snippet-1'))?.fragments?.map((fragment) => fragment.id)).toEqual([
+      'fragment-2',
+    ])
+    const rows = await database().connection.select<Array<{ id: string }>>(
+      'SELECT id FROM snippet_fragments WHERE snippet_id = $1',
+      ['snippet-1']
+    )
+    expect(rows.map((row) => row.id)).toEqual(['fragment-2'])
+  })
+
+  it('imports folders and snippets together', async () => {
     const folder: ResourceFolder = {
       id: 'folder-1',
       name: 'Work',
@@ -89,66 +97,11 @@ describe('snippet fragment persistence', () => {
       createdAt: 1,
       updatedAt: 1,
     }
-    const imported = { ...snippet(), folderId: folder.id, folder: folder.name }
-    const { saveSnippetImport } = await import('@/lib/db')
+    const { loadResourceFolders, loadSnippets, saveSnippetImport } = await import('@/lib/db')
 
-    await saveSnippetImport([folder], [imported])
+    await saveSnippetImport([folder], [snippet({ folderId: folder.id, folder: folder.name })])
 
-    expect(coreMock.invoke).toHaveBeenCalledOnce()
-    const [, payload] = coreMock.invoke.mock.calls[0] as [
-      string,
-      { immediate: boolean; statements: Array<{ sql: string; params: unknown[] }> },
-    ]
-    expect(payload.immediate).toBe(true)
-    expect(payload.statements[0]?.sql).toContain('INSERT INTO resource_folders')
-    expect(payload.statements[1]?.sql).toContain('INSERT INTO snippets')
-  })
-
-  it('loads fragments in persisted order and mirrors the first for legacy consumers', async () => {
-    sqlMock.select
-      .mockResolvedValueOnce([
-        {
-          id: 'snippet-1',
-          title: 'Client examples',
-          content: 'fetch(url)',
-          language: 'typescript',
-          description: 'Use these together.',
-          tags: '[]',
-          folder: '',
-          folder_id: 'snippets-inbox',
-          deleted_at: null,
-          favorite: 0,
-          created_at: 1,
-          updated_at: 2,
-        },
-      ])
-      .mockResolvedValueOnce([
-        {
-          id: 'fragment-2',
-          snippet_id: 'snippet-1',
-          name: 'styles.css',
-          content: '.root {}',
-          language: 'css',
-          sort_order: 1,
-          created_at: 1,
-          updated_at: 2,
-        },
-        {
-          id: 'fragment-1',
-          snippet_id: 'snippet-1',
-          name: 'client.ts',
-          content: 'fetch(url)',
-          language: 'typescript',
-          sort_order: 0,
-          created_at: 1,
-          updated_at: 2,
-        },
-      ])
-    const { loadSnippets } = await import('@/lib/db')
-
-    const [loaded] = await loadSnippets()
-
-    expect(loaded?.fragments?.map((fragment) => fragment.name)).toEqual(['client.ts', 'styles.css'])
-    expect(loaded).toMatchObject({ content: 'fetch(url)', language: 'typescript' })
+    expect((await loadResourceFolders()).map((entry) => entry.id)).toContain('folder-1')
+    expect((await loadSnippets()).map((entry) => entry.folderId)).toEqual(['folder-1'])
   })
 })

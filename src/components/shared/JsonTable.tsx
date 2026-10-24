@@ -1,5 +1,5 @@
 /** The table rendering of a tabular JSON array, plus the nested tables cells fall back to. */
-import { TreeValueButton } from '@/tools/json-tools/JsonTree'
+import { TreeValueButton } from '@/components/shared/JsonTree'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowsDownUpIcon, CaretDownIcon, CaretUpIcon } from '@phosphor-icons/react'
 import { Button } from '@/components/shared/Button'
@@ -11,7 +11,7 @@ import {
   isTabularJsonArray,
   toText,
   unionKeys,
-} from '@/tools/json-tools/json-model'
+} from '@/lib/json-model'
 
 // ---------------------------------------------------------------------------
 // Table View

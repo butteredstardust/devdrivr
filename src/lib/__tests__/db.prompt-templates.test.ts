@@ -1,24 +1,19 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { PromptTemplate } from '@/types/models'
+import { useSqliteTestDatabase } from '@/test-utils/sqlite-db'
 
-const sqlMock = vi.hoisted(() => ({
-  execute: vi.fn(),
-  select: vi.fn(),
-  load: vi.fn(),
-}))
+vi.mock(
+  '@tauri-apps/plugin-sql',
+  async () => (await import('@/test-utils/sqlite-db')).sqlitePluginModule
+)
+vi.mock(
+  '@tauri-apps/api/core',
+  async () => (await import('@/test-utils/sqlite-db')).sqliteCoreModule
+)
 
-vi.mock('@tauri-apps/plugin-sql', () => ({
-  default: {
-    load: sqlMock.load,
-  },
-}))
+const database = useSqliteTestDatabase()
 
-const coreMock = vi.hoisted(() => ({ invoke: vi.fn() }))
-vi.mock('@tauri-apps/api/core', () => ({ invoke: coreMock.invoke }))
-
-type BatchPayload = { statements: Array<{ sql: string; params: unknown[] }>; immediate: boolean }
-
-function makeTemplate(id: string): PromptTemplate {
+function makeTemplate(id: string, overrides: Partial<PromptTemplate> = {}): PromptTemplate {
   return {
     id,
     name: `Template ${id}`,
@@ -34,111 +29,79 @@ function makeTemplate(id: string): PromptTemplate {
     tips: [],
     createdAt: 1,
     updatedAt: 1,
+    ...overrides,
   }
 }
 
-describe('prompt template DB helpers', () => {
-  beforeEach(() => {
-    vi.resetModules()
-    sqlMock.execute.mockReset()
-    sqlMock.select.mockReset()
-    sqlMock.load.mockReset()
-    coreMock.invoke.mockReset()
-    coreMock.invoke.mockResolvedValue(undefined)
-    sqlMock.execute.mockResolvedValue({ rowsAffected: 0, lastInsertId: 0 })
-    sqlMock.load.mockResolvedValue({
-      execute: sqlMock.execute,
-      select: sqlMock.select,
+async function rows(): Promise<Array<{ id: string; author: string; name: string }>> {
+  return database().connection.select(
+    'SELECT id, author, name FROM user_prompt_templates ORDER BY id'
+  )
+}
+
+describe('prompt templates', () => {
+  it('round-trips a user template', async () => {
+    const { loadUserPromptTemplates, saveUserPromptTemplate } = await import('@/lib/db')
+    const template = makeTemplate('a', {
+      category: 'security',
+      tags: ['owasp'],
+      tips: ['Be brief'],
     })
+
+    await saveUserPromptTemplate(template)
+
+    await expect(loadUserPromptTemplates()).resolves.toEqual([template])
   })
 
-  it('sends a batch template save as one atomic command', async () => {
-    const { saveUserPromptTemplates } = await import('@/lib/db')
+  it('saves a batch of templates together', async () => {
+    const { loadUserPromptTemplates, saveUserPromptTemplates } = await import('@/lib/db')
 
     await saveUserPromptTemplates([makeTemplate('a'), makeTemplate('b')])
 
-    expect(coreMock.invoke).toHaveBeenCalledTimes(1)
-    const [command, payload] = coreMock.invoke.mock.calls[0] as [string, BatchPayload]
-    expect(command).toBe('db_execute_batch')
-    expect(payload.immediate).toBe(false)
-    expect(payload.statements).toHaveLength(2)
-    expect(payload.statements[0]?.params[0]).toBe('a')
-    expect(payload.statements[1]?.params[0]).toBe('b')
-    // Nothing reaches the plugin pool, so there is no split-connection transaction.
-    expect(sqlMock.execute).not.toHaveBeenCalledWith(
-      expect.stringContaining('INSERT INTO user_prompt_templates'),
-      expect.anything()
-    )
+    expect((await loadUserPromptTemplates()).map((t) => t.id).sort()).toEqual(['a', 'b'])
   })
 
-  it('surfaces a failed batch and issues no JS-side rollback', async () => {
-    coreMock.invoke.mockRejectedValueOnce(new Error('Batch statement failed: insert failed'))
+  it('writes nothing from a batch when one template fails', async () => {
     const { saveUserPromptTemplates } = await import('@/lib/db')
+    const broken = makeTemplate('b', { name: null as unknown as string })
 
-    await expect(saveUserPromptTemplates([makeTemplate('a'), makeTemplate('b')])).rejects.toThrow(
-      'insert failed'
+    await expect(saveUserPromptTemplates([makeTemplate('a'), broken])).rejects.toThrow(
+      'NOT NULL constraint failed'
     )
 
-    const statements = sqlMock.execute.mock.calls.map(([sql]) => sql)
-    expect(statements).not.toContain('BEGIN TRANSACTION')
-    expect(statements).not.toContain('ROLLBACK')
-    expect(statements).not.toContain('COMMIT')
+    expect(await rows()).toEqual([])
   })
 
-  it('seeds builtin templates through the same atomic batch path', async () => {
-    const { seedBuiltinPromptTemplates } = await import('@/lib/db')
+  it('seeds builtins, removes retired ones, and leaves user templates alone', async () => {
+    const { saveUserPromptTemplate, seedBuiltinPromptTemplates } = await import('@/lib/db')
+    await saveUserPromptTemplate(makeTemplate('mine'))
+    await seedBuiltinPromptTemplates([makeTemplate('kept'), makeTemplate('retired')])
 
-    await seedBuiltinPromptTemplates([makeTemplate('a')])
+    await seedBuiltinPromptTemplates([makeTemplate('kept', { name: 'Kept, renamed' })])
 
-    const [command, payload] = coreMock.invoke.mock.calls[0] as [string, BatchPayload]
-    expect(command).toBe('db_execute_batch')
-    expect(payload.statements[0]?.sql).toContain("author = 'builtin'")
+    expect(await rows()).toEqual([
+      { id: 'kept', author: 'builtin', name: 'Kept, renamed' },
+      { id: 'mine', author: 'user', name: 'Template mine' },
+    ])
   })
 
-  it('removes a builtin that is no longer shipped', async () => {
-    // The upsert only ever adds. Without this delete a retired builtin stays in the library
-    // forever, because nothing else removes it.
-    const { seedBuiltinPromptTemplates } = await import('@/lib/db')
+  it('never overwrites a user template that shares a builtin id', async () => {
+    const { saveUserPromptTemplate, seedBuiltinPromptTemplates } = await import('@/lib/db')
+    await saveUserPromptTemplate(makeTemplate('shared', { name: 'My version' }))
 
-    await seedBuiltinPromptTemplates([makeTemplate('a'), makeTemplate('b')])
+    await seedBuiltinPromptTemplates([makeTemplate('shared', { name: 'Shipped version' })])
 
-    const [, payload] = coreMock.invoke.mock.calls[0] as [string, BatchPayload]
-    const remove = payload.statements.at(-1)
-    expect(remove?.sql).toContain('DELETE FROM user_prompt_templates')
-    expect(remove?.sql).toContain("author = 'builtin'")
-    expect(remove?.sql).toContain('id NOT IN ($1, $2)')
-    expect(remove?.params).toEqual(['a', 'b'])
+    expect(await rows()).toEqual([{ id: 'shared', author: 'user', name: 'My version' }])
   })
 
   it('never empties the library when the shipped set is empty', async () => {
     // `NOT IN ()` is a syntax error, and an empty set is a build fault rather than an
     // instruction to delete every builtin.
     const { seedBuiltinPromptTemplates } = await import('@/lib/db')
+    await seedBuiltinPromptTemplates([makeTemplate('kept')])
 
     await seedBuiltinPromptTemplates([])
 
-    expect(coreMock.invoke).not.toHaveBeenCalled()
-  })
-
-  it('leaves user templates alone while removing retired builtins', async () => {
-    const { seedBuiltinPromptTemplates } = await import('@/lib/db')
-
-    await seedBuiltinPromptTemplates([makeTemplate('a')])
-
-    const [, payload] = coreMock.invoke.mock.calls[0] as [string, BatchPayload]
-    // A user's own template is author 'user', so the scoped delete cannot reach it.
-    expect(payload.statements.at(-1)?.sql).not.toContain("author = 'user'")
-  })
-
-  it('still writes a single template through the plugin connection', async () => {
-    const { saveUserPromptTemplate } = await import('@/lib/db')
-
-    await saveUserPromptTemplate(makeTemplate('a'))
-
-    expect(coreMock.invoke).not.toHaveBeenCalled()
-    expect(sqlMock.execute).toHaveBeenCalledWith(
-      expect.stringContaining('INSERT INTO user_prompt_templates'),
-      expect.arrayContaining(['a'])
-    )
+    expect((await rows()).map((row) => row.id)).toEqual(['kept'])
   })
 })

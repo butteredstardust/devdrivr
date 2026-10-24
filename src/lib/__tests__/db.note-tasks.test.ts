@@ -1,64 +1,63 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { Note } from '@/types/models'
+import { useSqliteTestDatabase } from '@/test-utils/sqlite-db'
 
-const sqlMock = vi.hoisted(() => ({
-  execute: vi.fn(),
-  select: vi.fn(),
-  load: vi.fn(),
-}))
-const coreMock = vi.hoisted(() => ({ invoke: vi.fn() }))
+vi.mock(
+  '@tauri-apps/plugin-sql',
+  async () => (await import('@/test-utils/sqlite-db')).sqlitePluginModule
+)
+vi.mock(
+  '@tauri-apps/api/core',
+  async () => (await import('@/test-utils/sqlite-db')).sqliteCoreModule
+)
 
-vi.mock('@tauri-apps/plugin-sql', () => ({ default: { load: sqlMock.load } }))
-vi.mock('@tauri-apps/api/core', () => ({ invoke: coreMock.invoke }))
+useSqliteTestDatabase()
 
-describe('note task DB helpers', () => {
-  beforeEach(() => {
-    vi.resetModules()
-    vi.clearAllMocks()
-    sqlMock.execute.mockResolvedValue({ rowsAffected: 1, lastInsertId: 0 })
-    sqlMock.select.mockResolvedValue([])
-    sqlMock.load.mockResolvedValue({ execute: sqlMock.execute, select: sqlMock.select })
-    coreMock.invoke.mockResolvedValue(undefined)
-  })
+function note(id: string, overrides: Partial<Note> = {}): Note {
+  return {
+    id,
+    title: id,
+    content: 'Keep the full note body',
+    color: 'yellow',
+    pinned: false,
+    poppedOut: false,
+    tags: ['release'],
+    sortOrder: 1,
+    folderId: 'notes-inbox',
+    createdAt: 1,
+    updatedAt: 2,
+    ...overrides,
+  }
+}
 
-  it('round-trips optional task metadata when saving a note', async () => {
-    const { saveNote } = await import('@/lib/db')
-    const note: Note = {
-      id: 'task-1',
-      title: 'Ship release',
-      content: 'Keep the full note body',
-      color: 'yellow',
-      pinned: false,
-      poppedOut: false,
-      tags: ['release'],
-      sortOrder: 1,
-      folderId: 'notes-inbox',
+describe('note tasks', () => {
+  it('round-trips task metadata, and leaves it absent on a plain note', async () => {
+    const { loadNote, saveNote } = await import('@/lib/db')
+    const task = note('task-1', {
       taskStatus: 'in_progress',
       taskPriority: 'high',
       taskDueDate: '2026-09-08',
-      createdAt: 1,
-      updatedAt: 2,
-    }
+    })
 
-    await saveNote(note)
+    await saveNote(task)
+    await saveNote(note('plain'))
 
-    const [, payload] = coreMock.invoke.mock.calls[0] as [
-      string,
-      { statements: Array<{ sql: string; params: unknown[] }> },
-    ]
-    expect(payload.statements[0]?.sql).toContain('task_status=$17')
-    expect(payload.statements[0]?.params.slice(-3)).toEqual(['in_progress', 'high', '2026-09-08'])
+    await expect(loadNote('task-1')).resolves.toEqual(task)
+    const plain = await loadNote('plain')
+    expect(plain).not.toHaveProperty('taskStatus')
+    expect(plain).not.toHaveProperty('taskPriority')
+    expect(plain).not.toHaveProperty('taskDueDate')
   })
 
-  it('soft-deletes only completed live tasks', async () => {
-    vi.spyOn(Date, 'now').mockReturnValue(123)
-    const { trashCompletedNotes } = await import('@/lib/db')
+  it('trashes only completed live tasks', async () => {
+    const db = await import('@/lib/db')
+    await db.saveNote(note('done', { taskStatus: 'done' }))
+    await db.saveNote(note('open', { taskStatus: 'todo' }))
+    await db.saveNote(note('plain'))
 
-    await trashCompletedNotes()
+    await db.trashCompletedNotes()
 
-    expect(sqlMock.execute).toHaveBeenCalledWith(
-      "UPDATE notes SET deleted_at = $1 WHERE task_status = 'done' AND deleted_at IS NULL",
-      [123]
-    )
+    expect((await db.loadNotes()).map((n) => n.id).sort()).toEqual(['open', 'plain'])
+    expect((await db.loadTrashedNotes()).map((n) => n.id)).toEqual(['done'])
   })
 })

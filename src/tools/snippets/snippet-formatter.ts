@@ -1,5 +1,5 @@
 import type { OnMount } from '@monaco-editor/react'
-import { LANGUAGES as FORMATTER_LANGUAGE_OPTIONS } from '@/tools/code-formatter/languages'
+import { LANGUAGES as FORMATTER_LANGUAGE_OPTIONS } from '@/lib/languages'
 
 export type SnippetEditor = Parameters<OnMount>[0]
 

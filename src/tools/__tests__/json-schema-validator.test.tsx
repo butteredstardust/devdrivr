@@ -15,7 +15,7 @@ import {
   parseJson,
   pointerLocation,
   validateJson,
-} from '../json-schema-validator/json-schema-helpers'
+} from '@/lib/json-schema-helpers'
 import { TEMPLATES, findMatchingTemplate } from '../json-schema-validator/templates'
 
 vi.mock('@/lib/file-io', () => ({

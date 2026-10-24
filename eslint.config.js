@@ -2,6 +2,67 @@ import js from '@eslint/js'
 import tseslint from '@typescript-eslint/eslint-plugin'
 import tsparser from '@typescript-eslint/parser'
 import reactHooks from 'eslint-plugin-react-hooks'
+import path from 'node:path'
+
+/**
+ * Each tool in src/tools/<id>/ is a plugin: the registry lazy-loads it, and nothing else may
+ * reach into it. Code that two tools need, or that a store, hook, worker or shared component
+ * needs, lives in src/lib, src/hooks or src/components/shared instead. Without this rule the
+ * import graph tangles one convenient import at a time, which is how seven tools came to depend
+ * on each other's internals.
+ */
+const toolBoundaries = {
+  meta: {
+    type: 'problem',
+    messages: {
+      crossTool:
+        'A tool must not import another tool ({{target}}). Move the shared code into src/lib, src/hooks or src/components/shared.',
+      outsideTool:
+        'Only the app shell, workers and tests import from src/tools ({{target}}). Move the shared code into src/lib, src/hooks or src/components/shared.',
+    },
+    schema: [],
+  },
+  create(context) {
+    const srcDir = path.resolve(context.cwd, 'src')
+    const toolsDir = path.join(srcDir, 'tools')
+    const file = path.resolve(context.filename)
+    const toolOf = (absolute) => {
+      const relative = path.relative(toolsDir, absolute)
+      if (relative.startsWith('..') || path.isAbsolute(relative)) return null
+      return relative.split(path.sep)[0] || null
+    }
+    const ownTool = toolOf(file)
+    // Exempt: tool tests, which exercise tools directly; the app shell, which registers and
+    // preloads tools; and workers, which are the off-thread half of the tool that spawns them.
+    const exempt =
+      ownTool === '__tests__' ||
+      !path.relative(path.join(srcDir, 'app'), file).startsWith('..') ||
+      !path.relative(path.join(srcDir, 'workers'), file).startsWith('..')
+    if (exempt) return {}
+
+    const check = (node, source) => {
+      if (typeof source !== 'string') return
+      let target = null
+      if (source.startsWith('@/')) target = path.join(srcDir, source.slice(2))
+      else if (source.startsWith('.')) target = path.resolve(path.dirname(file), source)
+      if (!target) return
+      const targetTool = toolOf(target)
+      if (!targetTool || targetTool === ownTool) return
+      context.report({
+        node,
+        messageId: ownTool ? 'crossTool' : 'outsideTool',
+        data: { target: source },
+      })
+    }
+    const fromSource = (node) => check(node.source, node.source?.value)
+    return {
+      ImportDeclaration: fromSource,
+      ExportNamedDeclaration: (node) => node.source && fromSource(node),
+      ExportAllDeclaration: fromSource,
+      ImportExpression: (node) => check(node.source, node.source.value),
+    }
+  },
+}
 
 export default [
   js.configs.recommended,
@@ -54,6 +115,7 @@ export default [
     plugins: {
       '@typescript-eslint': tseslint,
       'react-hooks': reactHooks,
+      devdrivr: { rules: { 'tool-boundaries': toolBoundaries } },
     },
     rules: {
       ...tseslint.configs.recommended.rules,
@@ -72,6 +134,7 @@ export default [
       'no-empty': 'warn',
       'no-useless-assignment': 'warn',
       'preserve-caught-error': 'warn',
+      'devdrivr/tool-boundaries': 'error',
     },
   },
   {

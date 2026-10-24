@@ -1,7 +1,7 @@
 import { act, fireEvent, render, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useNoteImageAttachments } from '@/tools/notes/useNoteImageAttachments'
-import type { EditorInstance } from '@/tools/markdown-editor/markdown-model'
+import type { EditorInstance } from '@/lib/markdown-model'
 import { MAX_NOTE_IMAGE_BYTES } from '@/lib/file-limits'
 
 const mocks = vi.hoisted(() => ({

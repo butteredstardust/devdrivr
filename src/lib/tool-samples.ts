@@ -140,7 +140,7 @@ host" is deliberately not an address and should not match.`,
 
 /**
  * Code Formatter's samples, keyed by the language ids in
- * `src/tools/code-formatter/languages.ts`. Every one is deliberately
+ * `src/lib/languages.ts`. Every one is deliberately
  * mis-formatted — inconsistent indentation, run-together statements, stray
  * whitespace — because a sample that is already formatted makes the tool look
  * broken when pressing Format changes nothing.

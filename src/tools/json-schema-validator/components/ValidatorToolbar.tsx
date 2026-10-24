@@ -17,7 +17,7 @@ import {
   type JsonSchemaState,
   type Pane,
   type ValidationReport,
-} from '@/tools/json-schema-validator/json-schema-helpers'
+} from '@/lib/json-schema-helpers'
 import { TEMPLATES } from '@/tools/json-schema-validator/templates'
 
 type ValidatorToolbarProps = {

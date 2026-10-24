@@ -6,16 +6,13 @@ import { useUiStore } from '@/stores/ui.store'
 import { useToolStateCache } from '@/stores/tool-state.store'
 import PromptTemplates from '@/tools/prompt-templates/PromptTemplates'
 import { validatePromptTemplatesState } from '@/tools/prompt-templates/prompt-templates-model'
-import {
-  BUILTIN_PROMPT_TEMPLATES,
-  CATEGORY_LABELS,
-} from '@/tools/prompt-templates/builtin-templates'
+import { BUILTIN_PROMPT_TEMPLATES, CATEGORY_LABELS } from '@/lib/prompt-template-builtins'
 import { PROMPT_TEMPLATE_CATEGORIES } from '@/types/models'
 import {
   parsePromptTemplateImport,
   serializePromptTemplateExport,
 } from '@/lib/prompt-template-transfer'
-import { estimateTokens, renderPrompt, tokenTone } from '@/tools/prompt-templates/template-utils'
+import { estimateTokens, renderPrompt, tokenTone } from '@/lib/prompt-template-utils'
 
 const originalClipboard = navigator.clipboard
 const fileIoMocks = vi.hoisted(() => ({

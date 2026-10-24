@@ -5,7 +5,7 @@ import {
   sourceLineForPreviewOffset,
   type ScrollSyncEditor,
   useScrollSync,
-} from '@/tools/markdown-editor/hooks/useScrollSync'
+} from '@/hooks/useScrollSync'
 
 const entries = [
   { startLine: 1, endLine: 1, top: 0, bottom: 30 },

@@ -4,7 +4,7 @@ import { Button } from '@/components/shared/Button'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { ProblemsList } from '@/components/shared/ProblemsList'
 import { SegmentedControl } from '@/components/shared/SegmentedControl'
-import type { CssIssue, SelectorInfo } from '@/tools/css-validator/css-helpers'
+import type { CssIssue, SelectorInfo } from '@/lib/css-helpers'
 import type { Panel } from '@/tools/css-validator/css-validator-types'
 
 // ---------------------------------------------------------------------------

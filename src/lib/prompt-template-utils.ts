@@ -3,8 +3,9 @@ import type {
   PromptTemplateValues,
   PromptTemplateVariable,
   PromptTemplateVariableType,
-  TokenTone,
-} from './types'
+} from '@/types/models'
+
+export type TokenTone = 'success' | 'warning' | 'error'
 
 const PLACEHOLDER_PATTERN = /\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g
 
