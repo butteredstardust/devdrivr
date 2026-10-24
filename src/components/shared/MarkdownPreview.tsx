@@ -16,7 +16,7 @@ import { Button } from '@/components/shared/Button'
 import { SectionLabel } from '@/components/shared/SectionLabel'
 import { TextArea } from '@/components/shared/TextArea'
 import { Toggle } from '@/components/shared/Toggle'
-import { nextHeadingId } from './heading-ids'
+import { nextHeadingId } from '@/lib/heading-ids'
 import { parseInternalResourceHref, type WikiResourceRef } from '@/lib/wiki-links'
 
 type TocEntry = {

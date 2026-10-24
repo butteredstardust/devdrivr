@@ -2,11 +2,7 @@ import { useCallback, type Dispatch, type SetStateAction } from 'react'
 import type { CopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { buildExportFilename, exportFile } from '@/lib/file-io'
 import { useUiStore } from '@/stores/ui.store'
-import {
-  BASE_EXPORT_STYLES,
-  PRINT_STYLES,
-  renderMarkdownContent,
-} from '@/tools/markdown-editor/markdown-model'
+import { BASE_EXPORT_STYLES, PRINT_STYLES, renderMarkdownContent } from '@/lib/markdown-model'
 
 type UseMarkdownExportOptions = {
   content: string

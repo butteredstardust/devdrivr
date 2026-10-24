@@ -163,7 +163,7 @@ src/tools/
 ├── json-schema-validator/ JsonSchemaValidator.tsx
 ├── json-tools/           JsonTools.tsx            ← uses formatter.worker
 ├── jwt-decoder/          JwtDecoder.tsx
-├── markdown-editor/      MarkdownEditor.tsx, MarkdownPreview.tsx
+├── markdown-editor/      MarkdownEditor.tsx (preview: components/shared/MarkdownPreview.tsx)
 ├── mermaid-editor/       MermaidEditor.tsx
 ├── notes/                NotesWorkspace.tsx
 ├── prompt-templates/     PromptTemplates.tsx
@@ -179,6 +179,8 @@ src/tools/
 ```
 
 Tool tests live in `src/tools/__tests__/<tool-id>.test.tsx`. Do not locate them with tool components.
+
+A tool never imports another tool. Code that two tools share lives in `src/lib`, `src/hooks` or `src/components/shared`. `bun run lint` enforces this with the `devdrivr/tool-boundaries` rule.
 
 ### `src/workers/` — Web Workers
 

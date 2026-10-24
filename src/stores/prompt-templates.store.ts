@@ -9,8 +9,8 @@ import {
 } from '@/lib/db'
 import { useUiStore } from '@/stores/ui.store'
 import type { PromptTemplate } from '@/types/models'
-import { BUILTIN_PROMPT_TEMPLATES } from '@/tools/prompt-templates/builtin-templates'
-import { estimateTokens, syncVariablesToPrompt } from '@/tools/prompt-templates/template-utils'
+import { BUILTIN_PROMPT_TEMPLATES } from '@/lib/prompt-template-builtins'
+import { estimateTokens, syncVariablesToPrompt } from '@/lib/prompt-template-utils'
 import type { PromptTemplateDraft } from '@/lib/prompt-template-transfer'
 
 type PromptTemplatesStore = {

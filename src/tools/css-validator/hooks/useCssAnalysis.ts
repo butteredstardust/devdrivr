@@ -7,7 +7,7 @@ import {
   type CssIssue,
   type CssStats,
   type SelectorInfo,
-} from '@/tools/css-validator/css-helpers'
+} from '@/lib/css-helpers'
 import type { CssValidatorState } from '@/tools/css-validator/css-validator-types'
 import type { CssWorker } from '@/workers/css.worker'
 import CssWorkerFactory from '@/workers/css.worker?worker'

@@ -32,7 +32,7 @@ import { ToolLayout } from '@/components/shared/ToolLayout'
 import { Toolbar, ToolbarGroup, ToolbarSpacer } from '@/components/shared/Toolbar'
 import { DocumentFileActions } from '@/components/shared/DocumentFileActions'
 import { buildExportFilename, exportFile, openFileDialog } from '@/lib/file-io'
-import { extensionForLanguage } from '@/tools/code-formatter/languages'
+import { extensionForLanguage } from '@/lib/languages'
 import type { FormatterWorker } from '@/workers/formatter.worker'
 import FormatterWorkerFactory from '@/workers/formatter.worker?worker'
 import { DIFF_VIEWER_SAMPLE } from '@/lib/tool-samples'
@@ -41,7 +41,7 @@ import DiffWorkerFactory from '@/workers/diff.worker?worker'
 import { formatShortcut } from '@/lib/shortcut-label'
 import { useToolAction } from '@/hooks/useToolAction'
 import { dispatchToolAction } from '@/lib/tool-actions'
-import { languageFromFilename } from '@/tools/code-formatter/languages'
+import { languageFromFilename } from '@/lib/languages'
 
 const { sanitize } = DOMPurify
 

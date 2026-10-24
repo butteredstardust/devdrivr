@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { CheckCircleIcon, ShieldCheckIcon, WarningCircleIcon } from '@phosphor-icons/react'
-import { type ValidationReport } from '@/tools/json-schema-validator/json-schema-helpers'
+import { type ValidationReport } from '@/lib/json-schema-helpers'
 
 export function SchemaOutline({ schema }: { schema: string }) {
   const outline = useMemo(() => {

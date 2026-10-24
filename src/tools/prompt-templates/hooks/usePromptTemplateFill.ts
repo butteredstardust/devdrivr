@@ -8,7 +8,7 @@ import {
   mergeDefaultValues,
   missingRequiredVariables,
   renderPrompt,
-} from '@/tools/prompt-templates/template-utils'
+} from '@/lib/prompt-template-utils'
 import type { PromptTemplate } from '@/tools/prompt-templates/types'
 
 type UsePromptTemplateFillInput = {

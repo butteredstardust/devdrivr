@@ -6,7 +6,7 @@ import MarkdownEditor, {
   renderMarkdownContent,
 } from '@/tools/markdown-editor/MarkdownEditor'
 import { markdownEditableEditorProcessor, markdownEditorProcessor } from '@/lib/markdown'
-import { MarkdownPreview } from '@/tools/markdown-editor/MarkdownPreview'
+import { MarkdownPreview } from '@/components/shared/MarkdownPreview'
 import { LinkModal } from '@/tools/markdown-editor/modals/LinkModal'
 import { CodeBlockModal } from '@/tools/markdown-editor/modals/CodeBlockModal'
 import { TableModal } from '@/tools/markdown-editor/modals/TableModal'
@@ -24,12 +24,9 @@ import {
   renumberOrderedListAround,
   renumberAroundIndex,
 } from '@/tools/markdown-editor/list-editing'
-import { toggleTaskAtIndex, countTasks } from '@/tools/markdown-editor/task-list'
+import { toggleTaskAtIndex, countTasks } from '@/lib/markdown-task-list'
 import { isUrl, tsvToMarkdownTable } from '@/tools/markdown-editor/paste-helpers'
-import {
-  validateMarkdownEditorState,
-  type MarkdownEditorState,
-} from '@/tools/markdown-editor/markdown-model'
+import { validateMarkdownEditorState, type MarkdownEditorState } from '@/lib/markdown-model'
 
 const mermaidMock = vi.hoisted(() => ({
   initialize: vi.fn(),

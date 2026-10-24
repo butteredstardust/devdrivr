@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { type OnMount } from '@monaco-editor/react'
-import type { CssIssue } from '@/tools/css-validator/css-helpers'
+import type { CssIssue } from '@/lib/css-helpers'
 
 export function useCssEditorMarkers(issues: CssIssue[]) {
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null)

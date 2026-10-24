@@ -5,7 +5,7 @@ import { Button } from '@/components/shared/Button'
 import { useModalFocus } from '@/hooks/useModalFocus'
 import { VariableForm } from '@/tools/prompt-templates/components/PromptTemplateFields'
 import { tokenClass } from '@/tools/prompt-templates/prompt-templates-model'
-import { tokenTone } from '@/tools/prompt-templates/template-utils'
+import { tokenTone } from '@/lib/prompt-template-utils'
 import type { PromptTemplate, PromptTemplateValues } from '@/tools/prompt-templates/types'
 
 type QuickFillModalProps = {

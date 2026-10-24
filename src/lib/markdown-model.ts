@@ -14,7 +14,7 @@ import type { OnMount } from '@monaco-editor/react'
 // comment in src/lib/markdown.ts for why that variant exists instead of loosening
 // the shared schema for every surface.
 import { markdownEditableEditorProcessor, markdownEditorProcessor } from '@/lib/markdown'
-import { nextHeadingId } from '@/tools/markdown-editor/heading-ids'
+import { nextHeadingId } from '@/lib/heading-ids'
 
 // ─── Types ───────────────────────────────────────────────────────────
 

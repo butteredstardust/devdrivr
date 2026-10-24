@@ -16,8 +16,8 @@ import {
   LARGE_TABLE_KEYS,
   type ParseResult,
   isTabularJsonArray,
-} from '@/tools/json-tools/json-model'
-import { JsonTable, NestedJsonValue, tableSummary } from '@/tools/json-tools/JsonTable'
+} from '@/lib/json-model'
+import { JsonTable, NestedJsonValue, tableSummary } from '@/components/shared/JsonTable'
 
 // ---------------------------------------------------------------------------
 // Inspector (tree / table)

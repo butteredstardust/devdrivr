@@ -32,7 +32,7 @@ import { MAX_EDITABLE_TEXT_FILE_BYTES } from '@/lib/file-limits'
 import { formatShortcut } from '@/lib/shortcut-label'
 import { textEncodingLabel, type DecodedText, type TextFileEncoding } from '@/lib/text-encoding'
 import { useRecentFilesStore } from '@/stores/recent-files.store'
-import { LANGUAGES as FORMATTER_LANGUAGES } from '@/tools/code-formatter/languages'
+import { LANGUAGES as FORMATTER_LANGUAGES } from '@/lib/languages'
 import { useUiStore } from '@/stores/ui.store'
 import {
   countLines,

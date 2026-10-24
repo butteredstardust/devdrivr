@@ -24,7 +24,7 @@ import {
   type EditorMode,
   type MarkdownEditorState,
   type UpdateMarkdownEditorState,
-} from '@/tools/markdown-editor/markdown-model'
+} from '@/lib/markdown-model'
 
 type MarkdownToolbarProps = {
   state: MarkdownEditorState

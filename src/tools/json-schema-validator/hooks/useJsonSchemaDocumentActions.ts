@@ -9,7 +9,7 @@ import {
   type JsonSchemaState,
   type Pane,
   type UpdateJsonSchemaState,
-} from '@/tools/json-schema-validator/json-schema-helpers'
+} from '@/lib/json-schema-helpers'
 import { TEMPLATES, findMatchingTemplate } from '@/tools/json-schema-validator/templates'
 
 type UseJsonSchemaDocumentActionsOptions = {

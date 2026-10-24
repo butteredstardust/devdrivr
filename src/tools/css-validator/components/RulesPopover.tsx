@@ -1,12 +1,7 @@
 import { Button } from '@/components/shared/Button'
 import { Checkbox } from '@/components/shared/Checkbox'
 import { SettingsPopover, SettingsSection } from '@/components/shared/SettingsPopover'
-import {
-  ALL_RULES,
-  RULE_CATEGORIES,
-  isRuleEnabled,
-  type RuleConfig,
-} from '@/tools/css-validator/css-helpers'
+import { ALL_RULES, RULE_CATEGORIES, isRuleEnabled, type RuleConfig } from '@/lib/css-helpers'
 
 export function RulesPopover({
   open,

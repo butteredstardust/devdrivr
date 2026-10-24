@@ -3,7 +3,7 @@ import type { WorkerRpc } from '@/hooks/useWorker'
 import { filenameFromPath, openFileDialog, saveFileDialog, saveFileToPath } from '@/lib/file-io'
 import { TOOL_SAMPLES } from '@/lib/tool-samples'
 import type { useUiStore } from '@/stores/ui.store'
-import { templateById } from '@/tools/css-validator/css-helpers'
+import { templateById } from '@/lib/css-helpers'
 import {
   syntaxFromFilename,
   type CssValidatorState,

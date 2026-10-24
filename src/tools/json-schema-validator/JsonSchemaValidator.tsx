@@ -21,7 +21,7 @@ import {
   type Pane,
   type ValidationIssue,
   type ValidationReport,
-} from '@/tools/json-schema-validator/json-schema-helpers'
+} from '@/lib/json-schema-helpers'
 import { DEFAULT_TEMPLATE_KEY, TEMPLATES } from '@/tools/json-schema-validator/templates'
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { EditorPane } from '@/tools/json-schema-validator/components/EditorPane'

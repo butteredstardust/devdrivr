@@ -8,7 +8,7 @@ import {
   type EditorInstance,
   type MarkdownEditorState,
   type UpdateMarkdownEditorState,
-} from '@/tools/markdown-editor/markdown-model'
+} from '@/lib/markdown-model'
 
 type UseMarkdownFormattingOptions = {
   editorRef: RefObject<EditorInstance | null>

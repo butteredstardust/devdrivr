@@ -24,7 +24,7 @@ import { SegmentedControl } from '@/components/shared/SegmentedControl'
 import { SplitPane } from '@/components/shared/SplitPane'
 import type { CopyToClipboard } from '@/hooks/useCopyToClipboard'
 import { folderPath } from '@/lib/resource-folders'
-import { MODE_OPTIONS } from '@/tools/markdown-editor/markdown-model'
+import { MODE_OPTIONS } from '@/lib/markdown-model'
 import { WikiLinkPicker } from '@/tools/notes/WikiLinkPicker'
 import {
   TASK_PRIORITY_OPTIONS,

@@ -7,4 +7,4 @@ export {
   type PromptTemplateVariableType,
 } from '@/types/models'
 
-export type TokenTone = 'success' | 'warning' | 'error'
+export type { TokenTone } from '@/lib/prompt-template-utils'

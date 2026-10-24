@@ -1,4 +1,4 @@
-import type { EditorMode } from '@/tools/markdown-editor/markdown-model'
+import type { EditorMode } from '@/lib/markdown-model'
 import type { TaskPriority, TaskStatus } from '@/types/models'
 import type { TaskView } from '@/tools/notes/task-model'
 

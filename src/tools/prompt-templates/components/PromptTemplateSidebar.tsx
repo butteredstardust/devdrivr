@@ -5,7 +5,7 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { Select } from '@/components/shared/Input'
 import { SearchInput } from '@/components/shared/SearchInput'
 import { StatusBadge } from '@/components/shared/StatusBadge'
-import { CATEGORY_LABELS } from '@/tools/prompt-templates/builtin-templates'
+import { CATEGORY_LABELS } from '@/lib/prompt-template-builtins'
 import type { usePromptTemplateLibrary } from '@/tools/prompt-templates/hooks/usePromptTemplateLibrary'
 import {
   categoryCount,

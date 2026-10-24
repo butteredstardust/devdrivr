@@ -1,7 +1,7 @@
 import { useId } from 'react'
 import { Button } from '@/components/shared/Button'
 import { PaneHeader } from '@/components/shared/PaneHeader'
-import { MAX_ISSUES, type ValidationIssue } from '@/tools/json-schema-validator/json-schema-helpers'
+import { MAX_ISSUES, type ValidationIssue } from '@/lib/json-schema-helpers'
 
 export function ProblemsPanel({
   issues,

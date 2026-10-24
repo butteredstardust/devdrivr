@@ -7,7 +7,7 @@ import {
   languageFromFilename,
   supportsJsStyleOptions,
   supportsQuoteStyle,
-} from '@/tools/code-formatter/languages'
+} from '@/lib/languages'
 import { format, getSupportedLanguages } from '@/workers/formatter.api'
 import { FORMATTER_WORKER_METHODS } from '@/workers/formatter.methods'
 import { dispatchToolAction } from '@/lib/tool-actions'

@@ -6,10 +6,7 @@ import {
   type SelectionToolbarAction,
   type SelectionToolbarState,
 } from '@/components/shared/SelectionContextToolbar'
-import {
-  type ActiveMarkdownModal,
-  type PendingDocument,
-} from '@/tools/markdown-editor/markdown-model'
+import { type ActiveMarkdownModal, type PendingDocument } from '@/lib/markdown-model'
 import { CodeBlockModal } from '@/tools/markdown-editor/modals/CodeBlockModal'
 import { ImageModal } from '@/tools/markdown-editor/modals/ImageModal'
 import { LinkModal } from '@/tools/markdown-editor/modals/LinkModal'

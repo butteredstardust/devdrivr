@@ -1,7 +1,7 @@
 /** The toolbar's formatting buttons: what each one wraps the selection in, and how they group. */
 import { ImageIcon, LinkIcon } from '@phosphor-icons/react'
 import { formatShortcut } from '@/lib/shortcut-label'
-import type { FormattingAction } from '@/tools/markdown-editor/markdown-model'
+import type { FormattingAction } from '@/lib/markdown-model'
 
 export const FORMATTING_ACTIONS: FormattingAction[] = [
   // Group 1 — inline text formatting

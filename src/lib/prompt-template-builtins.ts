@@ -1,4 +1,4 @@
-import type { PromptTemplate } from './types'
+import type { PromptTemplate } from '@/types/models'
 
 const LANGUAGE_OPTIONS = ['TypeScript', 'JavaScript', 'Python', 'Go', 'Rust', 'Java', 'SQL']
 const TEST_FRAMEWORK_OPTIONS = ['Vitest', 'Jest', 'pytest', 'Go test', 'JUnit']

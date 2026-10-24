@@ -40,7 +40,7 @@ import {
   languageLabel,
   supportsJsStyleOptions,
   supportsQuoteStyle,
-} from '@/tools/code-formatter/languages'
+} from '@/lib/languages'
 import { CODE_FORMATTER_SAMPLES } from '@/lib/tool-samples'
 import { ProblemsList, type ProblemItem } from '@/components/shared/ProblemsList'
 

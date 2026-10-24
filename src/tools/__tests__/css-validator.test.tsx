@@ -17,7 +17,7 @@ import {
   templateById,
   toggleRule,
   type CssIssue,
-} from '@/tools/css-validator/css-helpers'
+} from '@/lib/css-helpers'
 import { openFileDialog, saveFileDialog, saveFileToPath } from '@/lib/file-io'
 import { dispatchToolAction, supportsToolFileAction } from '@/lib/tool-actions'
 import * as cssTree from 'css-tree'

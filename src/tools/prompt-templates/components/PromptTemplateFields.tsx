@@ -3,7 +3,7 @@ import { Input, Select } from '@/components/shared/Input'
 import { PaneHeader } from '@/components/shared/PaneHeader'
 import { TextArea } from '@/components/shared/TextArea'
 import { tokenClass } from '@/tools/prompt-templates/prompt-templates-model'
-import { tokenTone } from '@/tools/prompt-templates/template-utils'
+import { tokenTone } from '@/lib/prompt-template-utils'
 import type { PromptTemplate, PromptTemplateValues } from '@/tools/prompt-templates/types'
 
 type VariableFormProps = {

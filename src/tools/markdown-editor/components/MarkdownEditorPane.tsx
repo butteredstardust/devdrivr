@@ -1,6 +1,6 @@
 import type { OnMount } from '@monaco-editor/react'
 import { MonacoEditor as Editor } from '@/components/shared/MonacoEditor'
-import type { UpdateMarkdownEditorState } from '@/tools/markdown-editor/markdown-model'
+import type { UpdateMarkdownEditorState } from '@/lib/markdown-model'
 
 type MarkdownEditorPaneProps = {
   theme: string
