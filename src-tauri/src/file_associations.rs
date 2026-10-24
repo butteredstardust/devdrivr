@@ -15,8 +15,10 @@ const ASSOCIATIONS: &[Association] = &[
         id: "plain-text",
         label: "Plain text and source",
         extensions: &[
-            "txt", "toml", "ini", "cfg", "conf", "env", "log", "ts", "tsx", "sh", "zsh", "py",
-            "rs", "go", "java", "mmd", "mermaid",
+            "txt", "toml", "ini", "cfg", "conf", "env", "mdx", "log", "ts", "tsx", "mts", "cts",
+            "sh", "zsh", "bash", "py", "rs", "go", "java", "c", "cc", "cpp", "h", "hpp", "cs",
+            "kt", "kts", "php", "rb", "swift", "dart", "lua", "pl", "pm", "hcl", "tf", "sql",
+            "graphql", "gql", "proto", "scss", "less", "mmd", "mermaid",
         ],
         mime_types: &["text/plain"],
     },
@@ -65,7 +67,7 @@ const ASSOCIATIONS: &[Association] = &[
     Association {
         id: "javascript",
         label: "JavaScript",
-        extensions: &["js", "jsx"],
+        extensions: &["js", "jsx", "mjs", "cjs"],
         mime_types: &["text/javascript"],
     },
 ];
