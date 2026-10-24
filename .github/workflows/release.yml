@@ -314,8 +314,10 @@ jobs:
           gh release upload "${TAG}" updater.json latest.json --clobber
 
       # The PR that this push merged carries the notes between its release-notes markers. See
-      # scripts/release-notes.mjs. A push without such a PR keeps the default body.
+      # scripts/release-notes.mjs. A push without such a PR keeps the default body. Best effort:
+      # the release is already out, so a failure here must not turn the run red.
       - name: Write release notes
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}

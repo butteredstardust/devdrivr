@@ -573,6 +573,8 @@ onMouseDown={() => handleAsyncAction()}
 
 A tool in `src/tools/<id>/` is a plugin that only the app shell loads. Another tool, a store, a hook or a shared component must not import from it. Put code that more than one place needs in `src/lib`, `src/hooks` or `src/components/shared`. The exceptions are `src/app` (the registry and preloads), a tool's own worker in `src/workers`, and tests.
 
+The raw-`<button>`/`<select>` lint rule covers `src/tools/**` only, so a component moved into `src/components/shared` leaves it. Keep the reason for any raw element there as a comment beside it, as `JsonTree.tsx` does.
+
 ```typescript
 // ✅
 import { LANGUAGES } from '@/lib/languages'

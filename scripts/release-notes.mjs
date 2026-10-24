@@ -71,14 +71,23 @@ function run() {
   const repo =
     process.env.GITHUB_REPOSITORY ||
     gh('repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner')
-  const number = pr || gh('api', `repos/${repo}/commits/${sha}/pulls`, '-q', '.[0].number')
+  // A commit can belong to several PRs, open ones included: take the one merged into main.
+  const number =
+    pr ||
+    gh(
+      'api',
+      `repos/${repo}/commits/${sha}/pulls`,
+      '-q',
+      '[.[] | select(.merged_at != null and .base.ref == "main")][0].number // empty'
+    )
   if (!number) {
-    console.log(`No pull request found for ${sha}; ${tag} keeps its default notes.`)
+    console.log(`No merged pull request found for ${sha}; ${tag} keeps its default notes.`)
     return
   }
-  const body = composeReleaseBody(
-    extractReleaseNotes(gh('pr', 'view', number, '--repo', repo, '--json', 'body', '-q', '.body'))
-  )
+  if (!/^\d+$/.test(number)) throw new Error(`Not a PR number: ${number}`)
+  const view = JSON.parse(gh('pr', 'view', number, '--repo', repo, '--json', 'body,mergedAt'))
+  if (!view.mergedAt) throw new Error(`PR #${number} is not merged; ${tag} keeps its notes.`)
+  const body = composeReleaseBody(extractReleaseNotes(view.body))
   if (body === '') {
     console.log(`PR #${number} has no release-notes markers; ${tag} keeps its default notes.`)
     return
