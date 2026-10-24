@@ -6,9 +6,9 @@ import {
   TASK_PRIORITIES,
   TASK_STATUSES,
 } from '@/lib/domain-values'
+import type { ToolGroup } from '@/types/tools'
 
 export { PROMPT_TEMPLATE_CATEGORIES }
-import type { ToolGroup } from '@/types/tools'
 
 export type Theme =
   | 'system'

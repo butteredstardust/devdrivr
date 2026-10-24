@@ -1,4 +1,5 @@
 import type { PromptTemplateDraft } from '@/lib/prompt-template-transfer'
+import { PROMPT_TEMPLATE_TARGETS } from '@/lib/domain-values'
 import { isPlainObject } from '@/lib/tool-state-merge'
 import {
   BUILTIN_PROMPT_TEMPLATES,
@@ -61,10 +62,7 @@ function isPromptTemplateDraft(value: unknown): value is PromptTemplateDraft {
     typeof value.category === 'string' &&
     Object.hasOwn(CATEGORY_LABELS, value.category) &&
     typeof value.prompt === 'string' &&
-    (value.optimizedFor === 'Claude' ||
-      value.optimizedFor === 'ChatGPT' ||
-      value.optimizedFor === 'Cursor' ||
-      value.optimizedFor === 'Generic') &&
+    (PROMPT_TEMPLATE_TARGETS as readonly unknown[]).includes(value.optimizedFor) &&
     typeof value.version === 'string' &&
     typeof value.estimatedTokens === 'number' &&
     Number.isFinite(value.estimatedTokens) &&
@@ -108,12 +106,7 @@ export const FILTERS: Array<{ id: CategoryFilter; label: string }> = [
   })),
 ]
 
-export const OPTIMIZED_FOR_OPTIONS: PromptTemplate['optimizedFor'][] = [
-  'Claude',
-  'ChatGPT',
-  'Cursor',
-  'Generic',
-]
+export const OPTIMIZED_FOR_OPTIONS: PromptTemplate['optimizedFor'][] = [...PROMPT_TEMPLATE_TARGETS]
 
 export const VARIABLE_TYPE_OPTIONS: PromptTemplateVariableType[] = ['text', 'textarea', 'select']
 

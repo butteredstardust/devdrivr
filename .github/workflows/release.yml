@@ -62,6 +62,13 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock
+          # CI ran on this push's commit. If another merge landed while it ran, release nothing: the
+          # bump would no longer fast-forward, and that merge's own run is queued to release it.
+          git fetch origin main
+          if [ "$(git rev-parse origin/main)" != "${GITHUB_SHA}" ]; then
+            echo "main moved past ${GITHUB_SHA}; the queued run for the newer commit releases instead."
+            exit 0
+          fi
           git commit -m "chore(release): bump version to ${{ steps.bump.outputs.new_version }} [skip ci]"
           git push
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
@@ -69,6 +76,8 @@ jobs:
   build:
     name: 'Build'
     needs: bump
+    # Empty when the bump step stood down because main moved on.
+    if: needs.bump.outputs.release_sha != ''
     permissions:
       contents: write
     strategy:

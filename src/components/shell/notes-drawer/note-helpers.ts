@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { NOTE_COLORS as NOTE_COLOR_VALUES } from '@/lib/domain-values'
 import type { NoteColor } from '@/types/models'
 
 export const DRAWER_TABS = [
@@ -6,16 +7,7 @@ export const DRAWER_TABS = [
   { id: 'history', label: 'History' },
 ]
 
-export const NOTE_COLORS: NoteColor[] = [
-  'yellow',
-  'green',
-  'blue',
-  'pink',
-  'purple',
-  'orange',
-  'red',
-  'gray',
-]
+export const NOTE_COLORS: NoteColor[] = [...NOTE_COLOR_VALUES]
 
 export type DropPosition = 'before' | 'after'
 export type DragOverNote = { id: string; position: DropPosition }
