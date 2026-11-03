@@ -83,7 +83,7 @@ export const NPM_DEPENDENCIES: readonly Attribution[] = [
   },
   {
     name: '@tauri-apps/plugin-updater',
-    version: '2.10.1',
+    version: '2.14.1',
     license: 'MIT OR Apache-2.0',
     copyright: 'Tauri Programme within The Commons Conservancy',
   },
@@ -91,7 +91,7 @@ export const NPM_DEPENDENCIES: readonly Attribution[] = [
   { name: 'ajv', version: '8.18.0', license: 'MIT', copyright: 'Evgeny Poberezkin' },
   { name: 'ajv-formats', version: '3.0.1', license: 'MIT', copyright: 'Evgeny Poberezkin' },
   { name: 'css-tree', version: '3.2.1', license: 'MIT', copyright: 'Roman Dvornov' },
-  { name: 'diff', version: '7.0.0', license: 'BSD-3-Clause', copyright: 'Kevin Decker' },
+  { name: 'diff', version: '8.0.4', license: 'BSD-3-Clause', copyright: 'Kevin Decker' },
   { name: 'diff2html', version: '3.4.56', license: 'MIT', copyright: 'Rodrigo Fernandes' },
   {
     name: 'dompurify',
@@ -234,7 +234,7 @@ export const CARGO_DEPENDENCIES: readonly Attribution[] = [
   },
   {
     name: 'tauri-plugin-updater',
-    version: '2.10.1',
+    version: '2.14.1',
     license: 'Apache-2.0 OR MIT',
     copyright: 'Tauri Programme within The Commons Conservancy',
   },

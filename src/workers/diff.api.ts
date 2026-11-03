@@ -25,8 +25,10 @@ export function computeDiff(left: string, right: string, options: DiffOptions = 
     }
   }
 
-  return createTwoFilesPatch('left', 'right', a, b, undefined, undefined, {
-    ignoreWhitespace: options.ignoreWhitespace,
-    ignoreCase: options.ignoreCase,
-  })
+  const patchOptions: Pick<DiffOptions, 'ignoreWhitespace' | 'ignoreCase'> = {}
+  if (options.ignoreWhitespace !== undefined)
+    patchOptions.ignoreWhitespace = options.ignoreWhitespace
+  if (options.ignoreCase !== undefined) patchOptions.ignoreCase = options.ignoreCase
+
+  return createTwoFilesPatch('left', 'right', a, b, undefined, undefined, patchOptions)
 }
