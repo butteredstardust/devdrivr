@@ -94,6 +94,8 @@ jobs:
           - platform: windows-latest
             args: ''
             description: 'Windows'
+          # Not the newest Ubuntu: the AppImage and the .deb need at least the glibc that built them,
+          # and 24.04 (glibc 2.39) is the oldest supported runner.
           - platform: ubuntu-24.04
             args: ''
             description: 'Linux'
