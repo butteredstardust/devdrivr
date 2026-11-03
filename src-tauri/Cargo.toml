@@ -32,8 +32,8 @@ tauri-plugin-process = "2"
 # @tauri-apps/plugin-updater in package.json.
 tauri-plugin-updater = "~2.14.1"
 # Keeps dialog-granted file paths readable after a restart, for restored documents and recent files.
-# Stays on 2.3: 2.4 requires tauri 2.12.
-tauri-plugin-persisted-scope = "~2.3"
+# Pinned to one minor: a new minor can require a newer tauri than the one in this file.
+tauri-plugin-persisted-scope = "~2.4"
 serde = { version = "1", features = ["derive"] }
 # Reads the signing time in an update's signature: see src/update_guard.rs.
 base64 = "0.22"
