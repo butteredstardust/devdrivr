@@ -216,10 +216,7 @@ async fn start_server(
             ))
         },
         LocalSessionManager::default().into(),
-        StreamableHttpServerConfig {
-            cancellation_token: cancellation.child_token(),
-            ..StreamableHttpServerConfig::default()
-        },
+        StreamableHttpServerConfig::default().with_cancellation_token(cancellation.child_token()),
     );
 
     let router = Router::new()

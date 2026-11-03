@@ -155,7 +155,7 @@ export const CARGO_DEPENDENCIES: readonly Attribution[] = [
   },
   {
     name: 'rmcp',
-    version: '0.16.0',
+    version: '2.1.0',
     license: 'Apache-2.0',
     copyright: 'Model Context Protocol contributors',
   },
