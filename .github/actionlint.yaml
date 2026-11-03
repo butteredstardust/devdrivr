@@ -1,0 +1,6 @@
+# actionlint 1.7.12 does not list the Ubuntu 26.04 runner labels yet. Remove this file when a
+# release of actionlint knows them.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04
+    - ubuntu-26.04-arm
