@@ -134,6 +134,7 @@ mod structured_results {
             .structured_content
             .as_ref()
             .expect("structured content");
+        assert_eq!(result.is_error, Some(false));
         assert_eq!(structured, &result_json(&result));
         assert_eq!(structured["total"], 1);
     }

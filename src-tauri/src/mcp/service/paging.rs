@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use rmcp::{
-    model::{CallToolResult, Content},
+    model::{CallToolResult, ContentBlock},
     ErrorData as McpError,
 };
 use serde_json::{json, Value};
@@ -15,11 +15,10 @@ use super::{invalid_argument, McpResult, ResourceType, DEFAULT_RESULT_LIMIT, MAX
 pub(super) fn to_json_text(value: Value) -> McpResult {
     let structured_content = value.is_object().then(|| value.clone());
     serde_json::to_string_pretty(&value)
-        .map(|text| CallToolResult {
-            content: vec![Content::text(text)],
-            structured_content,
-            is_error: Some(false),
-            meta: None,
+        .map(|text| {
+            let mut result = CallToolResult::success(vec![ContentBlock::text(text)]);
+            result.structured_content = structured_content;
+            result
         })
         .map_err(|err| McpError::internal_error(err.to_string(), None))
 }

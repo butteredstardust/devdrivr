@@ -536,14 +536,10 @@ impl ServerHandler for DevdrivrMcpService {
     }
 
     fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            capabilities: ServerCapabilities::builder().enable_tools().build(),
-            instructions: Some(
-                "Use `help` for devdrivr MCP guidance and `introspect` for schemas. These tools read and manage local devdrivr notes, snippets, prompt templates, and saved API client requests."
-                    .to_string(),
-            ),
-            ..ServerInfo::default()
-        }
+        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+            .with_instructions(
+                "Use `help` for devdrivr MCP guidance and `introspect` for schemas. These tools read and manage local devdrivr notes, snippets, prompt templates, and saved API client requests.",
+            )
     }
 }
 
