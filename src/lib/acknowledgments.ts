@@ -41,7 +41,7 @@ export const NPM_DEPENDENCIES: readonly Attribution[] = [
   { name: '@tanstack/react-table', version: '8.21.3', license: 'MIT', copyright: 'Tanner Linsley' },
   {
     name: '@tauri-apps/api',
-    version: '2.10.1',
+    version: '2.12.4',
     license: 'Apache-2.0 OR MIT',
     copyright: 'Tauri Programme within The Commons Conservancy',
   },
@@ -174,13 +174,13 @@ export const CARGO_DEPENDENCIES: readonly Attribution[] = [
   { name: 'sqlx', version: '0.8.6', license: 'MIT OR Apache-2.0', copyright: 'LaunchBadge, LLC' },
   {
     name: 'tauri',
-    version: '2.10.3',
+    version: '2.12.5',
     license: 'Apache-2.0 OR MIT',
     copyright: 'Tauri Programme within The Commons Conservancy',
   },
   {
     name: 'tauri-build',
-    version: '2.5.6',
+    version: '2.7.4',
     license: 'Apache-2.0 OR MIT',
     copyright: 'Tauri Programme within The Commons Conservancy',
   },
@@ -240,7 +240,7 @@ export const CARGO_DEPENDENCIES: readonly Attribution[] = [
   },
   {
     name: 'tauri-runtime',
-    version: '2.10.1',
+    version: '2.12.2',
     license: 'Apache-2.0 OR MIT',
     copyright: 'Tauri Programme within The Commons Conservancy',
   },
