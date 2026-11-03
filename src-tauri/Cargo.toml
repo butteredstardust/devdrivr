@@ -15,12 +15,16 @@ default = []
 # builds, because tauri-remote-ui is AGPL-3.0-only and linking it would put the whole binary under
 # that copyleft. `bun run dev:remote` is the only thing that turns it on.
 remote-ui = ["dep:tauri-remote-ui"]
+# Web inspector in a release build, for debugging a packaged app. Off by default: the inspector
+# runs any JavaScript with full IPC access, and on macOS it uses private APIs. Debug builds have
+# the inspector without this feature. Build with `bun run tauri build --features devtools`.
+devtools = ["tauri/devtools"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["devtools", "protocol-asset"] }
+tauri = { version = "2", features = ["protocol-asset"] }
 tauri-runtime = "2"
 tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 tauri-plugin-fs = "2"
@@ -32,8 +36,8 @@ tauri-plugin-process = "2"
 # @tauri-apps/plugin-updater in package.json.
 tauri-plugin-updater = "~2.14.1"
 # Keeps dialog-granted file paths readable after a restart, for restored documents and recent files.
-# Stays on 2.3: 2.4 requires tauri 2.12.
-tauri-plugin-persisted-scope = "~2.3"
+# Pinned to one minor: a new minor can require a newer tauri than the one in this file.
+tauri-plugin-persisted-scope = "~2.4"
 serde = { version = "1", features = ["derive"] }
 # Reads the signing time in an update's signature: see src/update_guard.rs.
 base64 = "0.22"
