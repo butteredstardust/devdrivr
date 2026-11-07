@@ -1,0 +1,11 @@
+# Gitleaks false positives. Each line is the fingerprint of one reviewed finding:
+# <commit>:<file>:<rule>:<line>. Add a line only after you confirm the value is not a secret.
+# Demo JWTs, curl credentials in test fixtures, and samples. None are real.
+ab55ffb5b1cb3f529b329b22c5a8cafb9cf11388:src/tools/__tests__/curl-to-fetch.test.tsx:curl-auth-user:239
+e78045657f1e35763dd52f1468844a5adcf5974a:apps/cockpit/src/tools/__tests__/curl-to-fetch.test.tsx:curl-auth-user:48
+57b08bf1e6e2bfc25d6ba04f197afc7536b05681:apps/cockpit/src/lib/tool-samples.ts:curl-auth-header:93
+0fb997eb09f3711c39926475dc55817fee4b5c8e:apps/cockpit/src/lib/tool-samples.ts:jwt:90
+6038d61153cc3342ce8df96d7b80cf85eca49a5a:apps/cockpit/src/lib/tool-samples.ts:jwt:46
+828524d0e50fd032ea9cfca43c9049a111597fad:apps/cockpit/src/tools/__tests__/jwt-decoder.test.tsx:jwt:7
+fed7298df33b4615bb596ed14514f7d6c623a8f4:docs/superpowers/plans/2026-03-22-test-suite-upgrades.md:jwt:435
+fed7298df33b4615bb596ed14514f7d6c623a8f4:docs/superpowers/plans/2026-03-22-test-suite-upgrades.md:jwt:444
