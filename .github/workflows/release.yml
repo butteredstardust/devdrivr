@@ -29,6 +29,8 @@ jobs:
   # The same checks a pull request runs. Nothing is bumped, built or published unless they pass.
   ci:
     name: 'CI'
+    permissions:
+      contents: read
     uses: ./.github/workflows/ci.yml
 
   bump:

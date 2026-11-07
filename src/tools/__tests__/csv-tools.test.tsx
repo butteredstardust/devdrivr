@@ -218,8 +218,9 @@ describe('csv-helpers', () => {
 
   it('escapes values that would otherwise break their format', () => {
     const columns = ['a']
-    const rows = [{ a: "pipe | quote ' newline\nend" }]
+    const rows = [{ a: "backslash \\ pipe | quote ' newline\nend" }]
 
+    expect(toOutput(columns, rows, 'markdown')).toContain('backslash \\\\')
     expect(toOutput(columns, rows, 'markdown')).toContain('\\|')
     expect(toOutput(columns, rows, 'markdown')).not.toContain('\nend')
     expect(toOutput(columns, rows, 'sql')).toContain("quote ''")
