@@ -465,6 +465,24 @@ describe('MarkdownEditor', () => {
     expect(container.innerHTML).not.toContain('old diagram')
   })
 
+  it('sanitizes Mermaid SVG before it enters the preview', async () => {
+    mermaidMock.render.mockResolvedValue({
+      svg: '<svg><script>alert(1)</script><text onload="alert(2)">diagram</text></svg>',
+    })
+
+    const { container } = render(
+      <MarkdownPreview
+        html="<pre><code class='language-mermaid'>flowchart TD&#xA;A</code></pre>"
+        showToc={false}
+        toc={[]}
+      />
+    )
+
+    await waitFor(() => expect(container.textContent).toContain('diagram'))
+    expect(container.querySelector('script')).not.toBeInTheDocument()
+    expect(container.querySelector('[onload]')).not.toBeInTheDocument()
+  })
+
   // Regression: React 19 compares `dangerouslySetInnerHTML` by object identity,
   // so an inline `{ __html }` literal made it rewrite innerHTML on every render
   // and tear down the subtree — destroying any text selection the user had made
@@ -1170,6 +1188,10 @@ describe('paste-helpers: tsvToMarkdownTable', () => {
 
   it('escapes pipe characters in cell content', () => {
     expect(tsvToMarkdownTable('A|B\tC\n1\t2|3')).toBe('| A\\|B | C |\n| --- | --- |\n| 1 | 2\\|3 |')
+  })
+
+  it('escapes backslashes before pipe characters', () => {
+    expect(tsvToMarkdownTable('A\\|B\tC\n1\t2')).toBe('| A\\\\\\|B | C |\n| --- | --- |\n| 1 | 2 |')
   })
 
   it('returns null for a single row (no data)', () => {

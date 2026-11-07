@@ -9,6 +9,7 @@ import {
   forwardRef,
   useImperativeHandle,
 } from 'react'
+import DOMPurify from 'dompurify'
 import { useSettingsStore } from '@/stores/settings.store'
 import { getEffectiveTheme, isLightEffectiveTheme } from '@/lib/theme'
 import { loadMermaid } from '@/lib/mermaid'
@@ -566,7 +567,11 @@ export const MarkdownPreview = forwardRef<HTMLDivElement, MarkdownPreviewProps>(
               wrapper.setAttribute('data-source-active', '')
               wrapper.classList.add('markdown-preview-source-active')
             }
-            wrapper.innerHTML = svg
+            wrapper.innerHTML = DOMPurify.sanitize(svg, {
+              USE_PROFILES: { svg: true, svgFilters: true },
+              // Keep the accessible role Mermaid sets on the diagram root.
+              ADD_ATTR: ['role'],
+            })
             parent.replaceWith(wrapper)
           } catch {
             // Leave as code block on error

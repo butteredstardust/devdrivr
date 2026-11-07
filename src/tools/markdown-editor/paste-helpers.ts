@@ -9,9 +9,9 @@ export function isUrl(text: string): boolean {
   return URL_RE.test(text.trim())
 }
 
-/** Escape `|` so it can't break out of a markdown table cell. */
+/** Escape Markdown control characters so the cell stays intact. */
 function escapeCell(cell: string): string {
-  return cell.replace(/\|/g, '\\|').trim()
+  return cell.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').trim()
 }
 
 /**

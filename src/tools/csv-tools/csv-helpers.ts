@@ -374,9 +374,9 @@ function cellText(value: unknown): string {
   return typeof value === 'object' ? JSON.stringify(value) : String(value)
 }
 
-/** `|` and newlines would break out of a Markdown cell. */
+/** Markdown escapes, pipes, and newlines can break a cell. */
 function escapeMarkdown(value: unknown): string {
-  return cellText(value).replace(/\|/g, '\\|').replace(/\n/g, ' ')
+  return cellText(value).replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\n/g, ' ')
 }
 
 function sqlLiteral(value: unknown): string {
