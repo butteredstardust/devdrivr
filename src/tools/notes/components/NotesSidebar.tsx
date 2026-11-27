@@ -1,3 +1,4 @@
+import { noteTimeAgo } from '@/lib/note-presentation'
 import type { Dispatch, KeyboardEvent, RefObject, SetStateAction } from 'react'
 import {
   CheckCircleIcon,
@@ -18,12 +19,7 @@ import type {
   NotesWorkspaceState,
   UpdateNotesWorkspaceState,
 } from '@/tools/notes/notes-workspace-model'
-import {
-  dueDateLabel,
-  notePreview,
-  taskStatusLabel,
-  timeAgo,
-} from '@/tools/notes/notes-workspace-model'
+import { dueDateLabel, notePreview, taskStatusLabel } from '@/tools/notes/notes-workspace-model'
 import { TASK_VIEWS, type TaskView } from '@/tools/notes/task-model'
 import type { Note, ResourceFolder } from '@/types/models'
 
@@ -282,7 +278,7 @@ export function NotesSidebar({
                   </p>
                 )}
                 <p className="mt-1 text-2xs text-[var(--color-text-muted)]">
-                  {timeAgo(note.updatedAt)}
+                  {noteTimeAgo(note.updatedAt)}
                 </p>
               </Button>
               {note.taskStatus && (

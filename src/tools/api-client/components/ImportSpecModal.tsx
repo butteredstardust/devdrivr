@@ -27,38 +27,46 @@ export function ImportSpecModal({ onImport, onClose }: Props) {
   const [filename, setFilename] = useState<string | undefined>(undefined)
   const [preview, setPreview] = useState<ApiImportResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [previewing, setPreviewing] = useState(false)
   const [importing, setImporting] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const previewRevision = useRef(0)
 
-  const parseContent = useCallback((nextContent: string, nextFilename?: string) => {
+  const parseContent = useCallback(async (nextContent: string, nextFilename?: string) => {
+    const revision = ++previewRevision.current
+    setPreview(null)
+    setError(null)
+    setPreviewing(true)
     try {
-      const result = importApiSpec({
+      const result = await importApiSpec({
         content: nextContent,
         ...(nextFilename !== undefined ? { filename: nextFilename } : {}),
       })
-      setPreview(result)
-      setError(null)
+      if (revision === previewRevision.current) setPreview(result)
     } catch (err) {
-      setPreview(null)
-      setError((err as Error).message)
+      if (revision === previewRevision.current) setError((err as Error).message)
+    } finally {
+      if (revision === previewRevision.current) setPreviewing(false)
     }
   }, [])
 
   const handleOpenFile = useCallback(async () => {
+    const revision = previewRevision.current
     try {
       const file = await openFileDialog({ maxBytes: MAX_API_IMPORT_BYTES })
-      if (!file) return
+      if (!file || revision !== previewRevision.current) return
       setContent(file.content)
       setFilename(file.filename)
-      parseContent(file.content, file.filename)
+      await parseContent(file.content, file.filename)
     } catch (err) {
+      if (revision !== previewRevision.current) return
       setPreview(null)
       setError(`Could not read file: ${(err as Error).message}`)
     }
   }, [parseContent])
 
   const handlePreview = useCallback(() => {
-    parseContent(content, filename)
+    void parseContent(content, filename)
   }, [content, filename, parseContent])
 
   const handleImport = useCallback(async () => {
@@ -93,8 +101,13 @@ export function ImportSpecModal({ onImport, onClose }: Props) {
           <Button variant="secondary" size="sm" onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="secondary" size="sm" onClick={handlePreview} disabled={!content.trim()}>
-            Preview
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handlePreview}
+            disabled={!content.trim() || previewing || importing}
+          >
+            {previewing ? 'Previewing…' : 'Preview'}
           </Button>
           <Button
             variant="primary"
@@ -132,6 +145,7 @@ export function ImportSpecModal({ onImport, onClose }: Props) {
             onClick={() => {
               void handleOpenFile()
             }}
+            disabled={importing}
           >
             Open File
           </Button>
@@ -141,9 +155,11 @@ export function ImportSpecModal({ onImport, onClose }: Props) {
           ref={textareaRef}
           value={content}
           onChange={(e) => {
+            previewRevision.current++
             setContent(e.target.value)
             setPreview(null)
             setError(null)
+            setPreviewing(false)
           }}
           placeholder="Paste API specification content here..."
           monospace

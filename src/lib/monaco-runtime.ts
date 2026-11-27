@@ -1,10 +1,13 @@
 import { loader } from '@monaco-editor/react'
-import * as monaco from 'monaco-editor'
+import * as monaco from 'monaco-editor/esm/vs/editor/editor.api.js'
+import 'monaco-editor/esm/vs/editor/edcore.main.js'
 import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
 import CssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker'
 import HtmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker'
 import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker'
 import TypeScriptWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker'
+
+export { isMonacoLanguageReady, loadMonacoLanguage } from '@/lib/monaco-languages'
 
 type MonacoWorkerEnvironment = typeof globalThis & {
   monaco?: typeof monaco
@@ -17,7 +20,7 @@ type MonacoWorkerEnvironment = typeof globalThis & {
 // so the editor runtime and every language worker must come from the production bundle instead.
 //
 // Import this for its side effects from anything that touches Monaco, never from `main.tsx`:
-// the runtime is a 3.8MB chunk and belongs in the lazy tool chunks, not in app startup. ESM
+// the runtime belongs in the lazy tool chunks, outside app startup. ESM
 // evaluates it before the importing module's body, so `loader.config` always lands before the
 // `loader.init()` in `useMonaco` — which is the ordering that actually matters here.
 ;(globalThis as MonacoWorkerEnvironment).monaco = monaco
@@ -31,4 +34,5 @@ type MonacoWorkerEnvironment = typeof globalThis & {
   },
 }
 
-loader.config({ monaco })
+// The loader only needs the core API. Its type also includes the optional language services.
+loader.config({ monaco: monaco as typeof import('monaco-editor') })

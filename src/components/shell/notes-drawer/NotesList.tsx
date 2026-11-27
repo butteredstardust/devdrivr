@@ -1,3 +1,4 @@
+import { noteTimeAgo } from '@/lib/note-presentation'
 import type { RefObject } from 'react'
 import {
   ArrowDownIcon,
@@ -18,7 +19,6 @@ import { SectionLabel } from '@/components/shared/SectionLabel'
 import { MarkdownRenderer } from '@/components/shell/notes-drawer/MarkdownRenderer'
 import {
   noteCardStyle,
-  timeAgo,
   type DragOverNote,
   type DropPosition,
 } from '@/components/shell/notes-drawer/note-helpers'
@@ -179,7 +179,7 @@ export function NotesList({
 
                     <div className="flex items-center gap-1 px-2.5 pb-2.5">
                       <span className="mr-auto text-2xs text-[var(--color-text-muted)]">
-                        {timeAgo(note.updatedAt)}
+                        {noteTimeAgo(note.updatedAt, true)}
                       </span>
                       <Button
                         variant="icon"

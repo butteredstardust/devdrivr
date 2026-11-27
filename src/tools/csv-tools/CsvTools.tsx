@@ -1,3 +1,4 @@
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type OnMount } from '@monaco-editor/react'
 import { MonacoEditor as Editor } from '@/components/shared/MonacoEditor'
@@ -155,11 +156,7 @@ export default function CsvTools() {
 
   // Parsing a multi-megabyte export on every keystroke costs a frame, and a
   // live region re-announcing the verdict per character is unusable.
-  const [parseSource, setParseSource] = useState(input)
-  useEffect(() => {
-    const timer = setTimeout(() => setParseSource(input), 250)
-    return () => clearTimeout(timer)
-  }, [input])
+  const parseSource = useDebouncedValue(input, 250)
 
   const parsed = useMemo<CsvParse>(
     () =>

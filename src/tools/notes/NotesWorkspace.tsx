@@ -1,3 +1,4 @@
+import { getNoteSaveState } from '@/lib/note-presentation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { OnMount } from '@monaco-editor/react'
 import { MasterDetailLayout } from '@/components/shared/MasterDetailLayout'
@@ -311,13 +312,7 @@ export default function NotesWorkspace() {
     [editNote]
   )
 
-  const saveState = selected
-    ? saveErrorIds.includes(selected.id)
-      ? 'Save failed'
-      : pendingSaveIds.includes(selected.id)
-        ? 'Saving…'
-        : 'Saved'
-    : null
+  const saveState = selected ? getNoteSaveState(selected.id, pendingSaveIds, saveErrorIds) : null
 
   const preview = (
     <MarkdownPreview

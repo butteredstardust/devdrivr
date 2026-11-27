@@ -294,9 +294,7 @@ export function Providers({ children }: { children: ReactNode }) {
     if (!bootstrapReady) return
     const preload = () => {
       void import('fuse.js')
-      void import('@/tools/json-tools/JsonTools')
       void import('@/tools/regex-tester/RegexTester')
-      void import('@/tools/markdown-editor/MarkdownEditor')
     }
 
     if (typeof requestIdleCallback !== 'undefined') {

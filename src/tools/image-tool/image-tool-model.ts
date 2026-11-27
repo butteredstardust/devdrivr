@@ -96,6 +96,63 @@ export type CropRect = {
   h: number
 }
 
+export function cropRectForDrag(drag: CropDragState, clientX: number, clientY: number): CropRect {
+  const { displayScale, origW, origH } = drag
+  const dx = (clientX - drag.startMouseX) / displayScale
+  const dy = (clientY - drag.startMouseY) / displayScale
+
+  let { x, y, w, h } = drag.startCrop
+  switch (drag.handle) {
+    case 'nw': {
+      // Lower-bound nx/ny so dragging past the image edge doesn't invert the rect
+      const nx = Math.max(
+        0,
+        Math.min(drag.startCrop.x + dx, drag.startCrop.x + drag.startCrop.w - 1)
+      )
+      const ny = Math.max(
+        0,
+        Math.min(drag.startCrop.y + dy, drag.startCrop.y + drag.startCrop.h - 1)
+      )
+      w = drag.startCrop.w - (nx - drag.startCrop.x)
+      h = drag.startCrop.h - (ny - drag.startCrop.y)
+      x = nx
+      y = ny
+      break
+    }
+    case 'ne': {
+      const ny = Math.max(
+        0,
+        Math.min(drag.startCrop.y + dy, drag.startCrop.y + drag.startCrop.h - 1)
+      )
+      h = drag.startCrop.h - (ny - drag.startCrop.y)
+      w = Math.max(1, drag.startCrop.w + dx)
+      y = ny
+      break
+    }
+    case 'sw': {
+      // Lower-bound nx so dragging past x=0 doesn't produce a negative width
+      const nx = Math.max(
+        0,
+        Math.min(drag.startCrop.x + dx, drag.startCrop.x + drag.startCrop.w - 1)
+      )
+      w = drag.startCrop.w - (nx - drag.startCrop.x)
+      h = Math.max(1, drag.startCrop.h + dy)
+      x = nx
+      break
+    }
+    case 'se':
+      w = Math.max(1, drag.startCrop.w + dx)
+      h = Math.max(1, drag.startCrop.h + dy)
+      break
+    case 'body':
+      x = drag.startCrop.x + dx
+      y = drag.startCrop.y + dy
+      break
+  }
+
+  return clampCropRect({ x, y, w, h }, { maxW: origW, maxH: origH })
+}
+
 export type ImageParameters = Omit<ImageToolState, 'activeTab' | 'sourcePath'>
 
 export function getImageParameters(state: ImageToolState): ImageParameters {

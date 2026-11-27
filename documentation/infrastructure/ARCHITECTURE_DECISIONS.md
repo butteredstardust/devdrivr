@@ -421,3 +421,26 @@ Patch updates remain available. A minor cannot update on one side alone.
 - Update a Tauri minor on both sides: run `cargo update -p <crate>` in `src-tauri`, then update the matching `package.json` tilde range.
 - Renovate can propose an npm minor beyond the tilde. Reject it until the Rust crate has the matching published minor.
 - `src/lib/acknowledgments.ts` records both versions. `src/lib/__tests__/acknowledgments.test.ts` checks them against `node_modules` and `Cargo.lock`.
+
+---
+
+## ADR-015: Load editor languages and API import adapters on demand
+
+The app shell leaves Monaco unloaded until an editor tool opens. The first tool loads the
+editor core and its features. The shared editor wrapper loads the selected language's
+contribution and then updates the existing model. Basic languages retain their installed
+catalog, and JSON, CSS, HTML, JavaScript and TypeScript load their language services as needed.
+
+TypeScript Playground keeps its own worker. It creates a compiler program with the target,
+module, JSX and strictness chosen in that tab. Monaco's TypeScript worker is tied to editor
+models and shared language defaults. Reusing it would couple those compiler settings across
+editor tabs and would change the playground's emit and diagnostics behavior.
+
+API import loads the detected format adapter. JSON is parsed directly and YAML is loaded only
+when JSON fails and the filename hasn't identified GraphQL or Protobuf. The preview dialog
+discards an outstanding parse result if the user changes the source.
+
+Build with `bunx vite build --manifest` and run `node scripts/report-bundle.mjs` to measure initial
+and first-tool static JavaScript separately from worker assets. Pass the build directory as an
+argument when comparing two builds. Use the browser harness to check idle requests and the time
+from opening a tool to a ready editor model, which include effects the static graph cannot see.

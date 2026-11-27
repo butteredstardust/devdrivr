@@ -12,15 +12,13 @@ import {
   finishBuilder,
   getInfoTitle,
   normalizeMethod,
-  parseStructuredRecord,
   readExample,
   schemaToExample,
   stringifyBody,
   type PlainRecord,
 } from '@/lib/api-import/shared'
 
-export function importAsyncApi(content: string): ApiImportResult {
-  const root = parseStructuredRecord(content, 'AsyncAPI document')
+export function importAsyncApi(root: PlainRecord): ApiImportResult {
   const title = getInfoTitle(root) ?? 'AsyncAPI Import'
   const builder = createBuilder('asyncapi', title)
   const channels = asRecord(root['channels'])
