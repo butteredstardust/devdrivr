@@ -81,9 +81,12 @@ describe('serializeApiExport', () => {
     })
   })
 
-  it('round-trips through importApiSpec', () => {
+  it('round-trips through importApiSpec', async () => {
     // The point of the format: what Settings → Data writes is what it can read back.
-    const result = importApiSpec({ content: exportAll(), filename: 'devdrivr-api-backup.json' })
+    const result = await importApiSpec({
+      content: exportAll(),
+      filename: 'devdrivr-api-backup.json',
+    })
 
     expect(result.requests).toHaveLength(2)
     expect(result.collections).toHaveLength(2)
@@ -91,8 +94,11 @@ describe('serializeApiExport', () => {
     expect(result.warnings).toEqual([])
   })
 
-  it('keeps the collection hierarchy and each request placement', () => {
-    const result = importApiSpec({ content: exportAll(), filename: 'devdrivr-api-backup.json' })
+  it('keeps the collection hierarchy and each request placement', async () => {
+    const result = await importApiSpec({
+      content: exportAll(),
+      filename: 'devdrivr-api-backup.json',
+    })
 
     const child = result.collections.find((collection) => collection.name === 'Child')
     expect(child?.parentKey).toBe('col-parent')
@@ -104,14 +110,14 @@ describe('serializeApiExport', () => {
     expect(loose?.collectionKey).toBeNull()
   })
 
-  it('exports an empty library without failing', () => {
+  it('exports an empty library without failing', async () => {
     const json = serializeApiExport({
       collections: [],
       requests: [],
       environments: [],
       activeEnvironmentId: null,
     })
-    const result = importApiSpec({ content: json, filename: 'devdrivr-api-backup.json' })
+    const result = await importApiSpec({ content: json, filename: 'devdrivr-api-backup.json' })
     expect(result.requests).toEqual([])
   })
 })

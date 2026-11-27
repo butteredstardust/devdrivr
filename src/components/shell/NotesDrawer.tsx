@@ -1,3 +1,4 @@
+import { getNoteSaveState, noteTimeAgo } from '@/lib/note-presentation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type Fuse from 'fuse.js'
 import { Button } from '@/components/shared/Button'
@@ -10,11 +11,7 @@ import { NoteEditor } from '@/components/shell/notes-drawer/NoteEditor'
 import { NotesList } from '@/components/shell/notes-drawer/NotesList'
 import { useDrawerWidth } from '@/components/shell/notes-drawer/hooks/useDrawerWidth'
 import { useNoteReorder } from '@/components/shell/notes-drawer/hooks/useNoteReorder'
-import {
-  DRAWER_TABS,
-  timeAgo,
-  type DropPosition,
-} from '@/components/shell/notes-drawer/note-helpers'
+import { DRAWER_TABS, type DropPosition } from '@/components/shell/notes-drawer/note-helpers'
 import { MIN_NOTES_DRAWER_WIDTH } from '@/lib/shell-layout'
 import { sendToTool } from '@/lib/tool-handoff'
 import { useHistoryStore } from '@/stores/history.store'
@@ -214,13 +211,7 @@ export function NotesDrawer() {
         <NoteEditor
           key={editingNote.id}
           note={editingNote}
-          saveState={
-            saveErrorIds.includes(editingNote.id)
-              ? 'error'
-              : pendingSaveIds.includes(editingNote.id)
-                ? 'saving'
-                : 'saved'
-          }
+          saveState={getNoteSaveState(editingNote.id, pendingSaveIds, saveErrorIds)}
           onEdit={editNote}
           onFlush={flushPendingNote}
           onUpdate={updateNote}
@@ -297,7 +288,7 @@ export function NotesDrawer() {
                       {entry.tool}
                     </span>
                     <span className="shrink-0 text-2xs text-[var(--color-text-muted)]">
-                      {timeAgo(entry.timestamp)}
+                      {noteTimeAgo(entry.timestamp, true)}
                     </span>
                   </span>
                   <span className="mt-1 block line-clamp-2 text-xs leading-5 text-[var(--color-text-muted)]">

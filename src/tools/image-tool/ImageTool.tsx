@@ -1,19 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useIsInstanceActive } from '@/app/tool-instance'
-import { useFrameThrottle } from '@/hooks/useFrameThrottle'
 import { useToolAction } from '@/hooks/useToolAction'
 import { useToolState } from '@/hooks/useToolState'
 import { buildExportFilename } from '@/lib/file-io'
 import { useUiStore } from '@/stores/ui.store'
 import { ImageToolView } from '@/tools/image-tool/components/ImageToolView'
+import { useCropInteraction } from '@/tools/image-tool/hooks/useCropInteraction'
 import { useImageExport } from '@/tools/image-tool/hooks/useImageExport'
 import { useImageLoading } from '@/tools/image-tool/hooks/useImageLoading'
 import {
-  clampCropRect,
-  cropRectsMatch,
   getImageParameters,
-  type CropDragState,
-  type CropHandle,
   type DisplayMetrics,
   type ImageParameters,
   type ImageToolState,
@@ -52,18 +48,20 @@ export default function ImageTool() {
 
   // ── Refs ────────────────────────────────────────────────────────
 
-  const cropDragRef = useRef<CropDragState | null>(null)
-  const cropDragUndoRef = useRef<ImageParameters | null>(null)
   const undoRef = useRef<ImageParameters | null>(null)
   const [canUndo, setCanUndo] = useState(false)
 
+  const recordUndo = useCallback((snapshot: ImageParameters) => {
+    undoRef.current = snapshot
+    setCanUndo(true)
+  }, [])
+
   const updateParameters = useCallback(
     (patch: Partial<ImageParameters>) => {
-      undoRef.current = getImageParameters(state)
-      setCanUndo(true)
+      recordUndo(getImageParameters(state))
       persistState(patch)
     },
-    [persistState, state]
+    [persistState, recordUndo, state]
   )
 
   const handleImageLoaded = useCallback(() => {
@@ -186,263 +184,22 @@ export default function ImageTool() {
     [originalImg, sourceW, sourceH, updateParameters]
   )
 
-  // ── Crop interaction ────────────────────────────────────────────
-
-  const handleCropHandleMouseDown = useCallback(
-    (e: React.MouseEvent, handle: CropHandle) => {
-      e.preventDefault()
-      e.stopPropagation()
-      if (!displayMetrics || !originalImg) return
-      cropDragUndoRef.current = getImageParameters(state)
-      cropDragRef.current = {
-        handle,
-        startMouseX: e.clientX,
-        startMouseY: e.clientY,
-        startCrop: {
-          x: state.cropX,
-          y: state.cropY,
-          w: state.cropW ?? originalImg.naturalWidth,
-          h: state.cropH ?? originalImg.naturalHeight,
-        },
-        displayScale: displayMetrics.displayScale,
-        origW: originalImg.naturalWidth,
-        origH: originalImg.naturalHeight,
-      }
-    },
-    [displayMetrics, originalImg, state]
-  )
-
-  /** Last rect handed to updateState. Guards a redraw for a crop that has not moved. */
-  const committedCropRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null)
-
-  // Every commit re-renders the tool, resizes the output canvas and redraws the image. A mouse
-  // delivers several moves per frame, and only the last one can paint, so only the last is applied.
-  const { run: scheduleCrop, flush: flushCrop } = useFrameThrottle(
-    (clientX: number, clientY: number) => {
-      const drag = cropDragRef.current
-      if (!drag) return
-      const { displayScale, origW, origH } = drag
-      const dx = (clientX - drag.startMouseX) / displayScale
-      const dy = (clientY - drag.startMouseY) / displayScale
-
-      let { x, y, w, h } = drag.startCrop
-      switch (drag.handle) {
-        case 'nw': {
-          // Lower-bound nx/ny so dragging past the image edge doesn't invert the rect
-          const nx = Math.max(
-            0,
-            Math.min(drag.startCrop.x + dx, drag.startCrop.x + drag.startCrop.w - 1)
-          )
-          const ny = Math.max(
-            0,
-            Math.min(drag.startCrop.y + dy, drag.startCrop.y + drag.startCrop.h - 1)
-          )
-          w = drag.startCrop.w - (nx - drag.startCrop.x)
-          h = drag.startCrop.h - (ny - drag.startCrop.y)
-          x = nx
-          y = ny
-          break
-        }
-        case 'ne': {
-          const ny = Math.max(
-            0,
-            Math.min(drag.startCrop.y + dy, drag.startCrop.y + drag.startCrop.h - 1)
-          )
-          h = drag.startCrop.h - (ny - drag.startCrop.y)
-          w = Math.max(1, drag.startCrop.w + dx)
-          y = ny
-          break
-        }
-        case 'sw': {
-          // Lower-bound nx so dragging past x=0 doesn't produce a negative width
-          const nx = Math.max(
-            0,
-            Math.min(drag.startCrop.x + dx, drag.startCrop.x + drag.startCrop.w - 1)
-          )
-          w = drag.startCrop.w - (nx - drag.startCrop.x)
-          h = Math.max(1, drag.startCrop.h + dy)
-          x = nx
-          break
-        }
-        case 'se':
-          w = Math.max(1, drag.startCrop.w + dx)
-          h = Math.max(1, drag.startCrop.h + dy)
-          break
-        case 'body':
-          x = drag.startCrop.x + dx
-          y = drag.startCrop.y + dy
-          break
-      }
-
-      const next = clampCropRect({ x, y, w, h }, { maxW: origW, maxH: origH })
-
-      // Dragging past the image edge keeps producing the same clamped rect. Committing it again
-      // would redraw the canvas once a frame for a crop that is standing still.
-      const previous = committedCropRef.current
-      const comparison = previous ?? drag.startCrop
-      if (
-        comparison.x === next.x &&
-        comparison.y === next.y &&
-        comparison.w === next.w &&
-        comparison.h === next.h
-      ) {
-        return
-      }
-      if (!previous && cropDragUndoRef.current) {
-        undoRef.current = cropDragUndoRef.current
-        setCanUndo(true)
-      }
-      committedCropRef.current = next
-
-      persistState({
-        cropX: next.x,
-        cropY: next.y,
-        cropW: next.w,
-        cropH: next.h,
-      })
-    }
-  )
-
-  const handleCropMouseMove = useCallback(
-    (e: React.MouseEvent) => {
-      if (!cropDragRef.current) return
-      scheduleCrop(e.clientX, e.clientY)
-    },
-    [scheduleCrop]
-  )
-
-  const handleCropMouseUp = useCallback(() => {
-    // Land the last position before the drag is dropped, or the crop settles a frame behind
-    // where the pointer let go.
-    flushCrop()
-    cropDragRef.current = null
-    cropDragUndoRef.current = null
-    committedCropRef.current = null
-  }, [flushCrop])
-
-  const handleCropKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
-      if (!originalImg) return
-      const step = event.shiftKey ? 10 : 1
-      let dx = 0
-      let dy = 0
-      if (event.key === 'ArrowLeft') dx = -step
-      if (event.key === 'ArrowRight') dx = step
-      if (event.key === 'ArrowUp') dy = -step
-      if (event.key === 'ArrowDown') dy = step
-      if (!dx && !dy) return
-      event.preventDefault()
-      const next = clampCropRect(
-        {
-          x: state.cropX + dx,
-          y: state.cropY + dy,
-          w: state.cropW ?? originalImg.naturalWidth,
-          h: state.cropH ?? originalImg.naturalHeight,
-        },
-        { maxW: originalImg.naturalWidth, maxH: originalImg.naturalHeight }
-      )
-      const current = {
-        x: state.cropX,
-        y: state.cropY,
-        w: state.cropW ?? originalImg.naturalWidth,
-        h: state.cropH ?? originalImg.naturalHeight,
-      }
-      if (cropRectsMatch(next, current)) return
-      updateParameters({ cropX: next.x, cropY: next.y, cropW: next.w, cropH: next.h })
-    },
-    [originalImg, state.cropH, state.cropW, state.cropX, state.cropY, updateParameters]
-  )
-
-  const handleCropHandleKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLButtonElement>, handle: Exclude<CropHandle, 'body'>) => {
-      if (!originalImg) return
-      const step = event.shiftKey ? 10 : 1
-      let dx = 0
-      let dy = 0
-      if (event.key === 'ArrowLeft') dx = -step
-      if (event.key === 'ArrowRight') dx = step
-      if (event.key === 'ArrowUp') dy = -step
-      if (event.key === 'ArrowDown') dy = step
-      if (!dx && !dy) return
-      event.preventDefault()
-      event.stopPropagation()
-
-      let x = state.cropX
-      let y = state.cropY
-      let w = state.cropW ?? originalImg.naturalWidth
-      let h = state.cropH ?? originalImg.naturalHeight
-
-      if (handle === 'nw' || handle === 'sw') {
-        const nextX = Math.max(0, x + dx)
-        w -= nextX - x
-        x = nextX
-      } else {
-        w += dx
-      }
-      if (handle === 'nw' || handle === 'ne') {
-        const nextY = Math.max(0, y + dy)
-        h -= nextY - y
-        y = nextY
-      } else {
-        h += dy
-      }
-
-      const next = clampCropRect(
-        { x, y, w, h },
-        { maxW: originalImg.naturalWidth, maxH: originalImg.naturalHeight }
-      )
-      const current = {
-        x: state.cropX,
-        y: state.cropY,
-        w: state.cropW ?? originalImg.naturalWidth,
-        h: state.cropH ?? originalImg.naturalHeight,
-      }
-      if (cropRectsMatch(next, current)) return
-      updateParameters({ cropX: next.x, cropY: next.y, cropW: next.w, cropH: next.h })
-    },
-    [originalImg, state.cropH, state.cropW, state.cropX, state.cropY, updateParameters]
-  )
-
-  useEffect(() => {
-    if (state.activeTab !== 'crop') {
-      cropDragRef.current = null
-      cropDragUndoRef.current = null
-      return
-    }
-    window.addEventListener('mouseup', handleCropMouseUp)
-    return () => {
-      window.removeEventListener('mouseup', handleCropMouseUp)
-      cropDragRef.current = null
-      cropDragUndoRef.current = null
-    }
-  }, [handleCropMouseUp, state.activeTab])
-
-  const handleResetCrop = useCallback(() => {
-    if (!originalImg) return
-    updateParameters({
-      cropX: 0,
-      cropY: 0,
-      cropW: originalImg.naturalWidth,
-      cropH: originalImg.naturalHeight,
-    })
-  }, [originalImg, updateParameters])
-
-  const handleCropChange = useCallback(
-    (x: number, y: number, w: number, h: number) => {
-      if (!originalImg) return
-      const next = clampCropRect(
-        { x, y, w, h },
-        { maxW: originalImg.naturalWidth, maxH: originalImg.naturalHeight }
-      )
-      updateParameters({
-        cropX: next.x,
-        cropY: next.y,
-        cropW: next.w,
-        cropH: next.h,
-      })
-    },
-    [originalImg, updateParameters]
-  )
+  const {
+    handleCropHandleMouseDown,
+    handleCropMouseMove,
+    handleCropMouseUp,
+    handleCropKeyDown,
+    handleCropHandleKeyDown,
+    handleResetCrop,
+    handleCropChange,
+  } = useCropInteraction({
+    state,
+    displayMetrics,
+    originalImg,
+    persistState,
+    updateParameters,
+    recordUndo,
+  })
 
   useToolAction((action) => {
     if (action.type === 'open-file-dialog') void handleOpenImage()

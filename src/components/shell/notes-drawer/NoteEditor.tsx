@@ -1,3 +1,4 @@
+import { NOTE_SAVE_LABELS, type NoteSaveState } from '@/lib/note-presentation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ArrowLeftIcon,
@@ -12,11 +13,7 @@ import {
 import { Button } from '@/components/shared/Button'
 import { InlineInput } from '@/components/shared/InlineInput'
 import { SectionLabel } from '@/components/shared/SectionLabel'
-import {
-  NOTE_COLORS,
-  noteColorVar,
-  type SaveState,
-} from '@/components/shell/notes-drawer/note-helpers'
+import { NOTE_COLORS, noteColorVar } from '@/components/shell/notes-drawer/note-helpers'
 import type { Note as NoteType } from '@/types/models'
 
 export function NoteEditor({
@@ -32,7 +29,7 @@ export function NoteEditor({
   onUseAsInput,
 }: {
   note: NoteType
-  saveState: SaveState
+  saveState: NoteSaveState
   onEdit: (id: string, patch: Partial<Pick<NoteType, 'title' | 'content'>>) => void
   onFlush: (id: string) => Promise<void>
   onUpdate: (id: string, patch: Partial<NoteType>) => Promise<void>
@@ -118,7 +115,7 @@ export function NoteEditor({
             className={`text-2xs ${saveState === 'error' ? 'text-[var(--color-error)]' : 'text-[var(--color-text-muted)]'}`}
             aria-live="polite"
           >
-            {saveState === 'saving' ? 'Saving…' : saveState === 'error' ? 'Save failed' : 'Saved'}
+            {NOTE_SAVE_LABELS[saveState]}
           </p>
         </div>
         <Button

@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { detectApiImportFormat, importApiSpec } from '@/lib/api-import'
 
 describe('api import parser', () => {
-  it('imports nested Postman collection requests', () => {
-    const result = importApiSpec({
+  it('imports nested Postman collection requests', async () => {
+    const result = await importApiSpec({
       filename: 'collection.json',
       content: JSON.stringify({
         info: {
@@ -65,8 +65,8 @@ describe('api import parser', () => {
     })
   })
 
-  it('imports OpenAPI operations from YAML', () => {
-    const result = importApiSpec({
+  it('imports OpenAPI operations from YAML', async () => {
+    const result = await importApiSpec({
       filename: 'openapi.yaml',
       content: `
 openapi: 3.0.3
@@ -124,8 +124,8 @@ paths:
     expect(result.requests[1]?.body).toContain('"name": "Luna"')
   })
 
-  it('honors OpenAPI operation security overrides and skips optional query params', () => {
-    const result = importApiSpec({
+  it('honors OpenAPI operation security overrides and skips optional query params', async () => {
+    const result = await importApiSpec({
       filename: 'openapi.json',
       content: JSON.stringify({
         openapi: '3.0.3',
@@ -156,8 +156,8 @@ paths:
     })
   })
 
-  it('imports AsyncAPI HTTP bindings and skips non-HTTP operations', () => {
-    const result = importApiSpec({
+  it('imports AsyncAPI HTTP bindings and skips non-HTTP operations', async () => {
+    const result = await importApiSpec({
       filename: 'asyncapi.yaml',
       content: `
 asyncapi: 2.6.0
@@ -194,8 +194,8 @@ channels:
     expect(result.warnings[0]).toContain('no HTTP binding')
   })
 
-  it('imports protobuf google.api.http annotations', () => {
-    const result = importApiSpec({
+  it('imports protobuf google.api.http annotations', async () => {
+    const result = await importApiSpec({
       filename: 'users.proto',
       content: `
 syntax = "proto3";
@@ -242,8 +242,8 @@ message CreateUserRequest {
     expect(result.warnings[0]).toContain('Internal')
   })
 
-  it('imports GraphQL operation documents', () => {
-    const result = importApiSpec({
+  it('imports GraphQL operation documents', async () => {
+    const result = await importApiSpec({
       filename: 'users.graphql',
       content: `
 query GetUser($id: ID!) {
@@ -271,8 +271,8 @@ subscription UserEvents {
     expect(result.warnings[0]).toContain('subscription')
   })
 
-  it('imports GraphQL SDL root fields', () => {
-    const result = importApiSpec({
+  it('imports GraphQL SDL root fields', async () => {
+    const result = await importApiSpec({
       filename: 'schema.graphql',
       content: `
 type Query {
@@ -296,8 +296,8 @@ type User {
     expect(result.requests[1]?.body).toContain('$name: String!')
   })
 
-  it('imports GraphQL SDL root fields from extensions', () => {
-    const result = importApiSpec({
+  it('imports GraphQL SDL root fields from extensions', async () => {
+    const result = await importApiSpec({
       filename: 'schema.graphql',
       content: `
 type Query {
@@ -317,8 +317,8 @@ type User {
     expect(result.requests.map((request) => request.name)).toEqual(['Query viewer', 'Query users'])
   })
 
-  it('keeps devdrivr JSON array import compatible', () => {
-    const result = importApiSpec({
+  it('keeps devdrivr JSON array import compatible', async () => {
+    const result = await importApiSpec({
       content: JSON.stringify([
         {
           name: 'Health',
@@ -340,8 +340,8 @@ type User {
     })
   })
 
-  it('round-trips version 3 environments and active environment identity', () => {
-    const result = importApiSpec({
+  it('round-trips version 3 environments and active environment identity', async () => {
+    const result = await importApiSpec({
       content: JSON.stringify({
         format: 'devdrivr-api',
         version: 3,
@@ -360,8 +360,8 @@ type User {
     expect(result.activeEnvironmentKey).toBe('env-1')
   })
 
-  it('caps version 3 environment imports', () => {
-    expect(() =>
+  it('caps version 3 environment imports', async () => {
+    await expect(
       importApiSpec({
         content: JSON.stringify({
           version: 3,
@@ -374,11 +374,11 @@ type User {
           })),
         }),
       })
-    ).toThrow('more than 1000 environments')
+    ).rejects.toThrow('more than 1000 environments')
   })
 
-  it('groups devdrivr exports into multiple collections without trusting persisted IDs', () => {
-    const result = importApiSpec({
+  it('groups devdrivr exports into multiple collections without trusting persisted IDs', async () => {
+    const result = await importApiSpec({
       content: JSON.stringify([
         {
           id: 'conflicting-request-id',
@@ -430,7 +430,7 @@ type User {
     expect(result.requests[0]).not.toHaveProperty('collectionId')
   })
 
-  it('rejects YAML anchors that form a cycle', () => {
+  it('rejects YAML anchors that form a cycle', async () => {
     const content = `openapi: 3.0.0
 info: { title: Cycle, version: '1' }
 paths:
@@ -441,10 +441,10 @@ paths:
           application/json:
             schema: &node { type: object, properties: { self: *node } }
 `
-    expect(() => importApiSpec({ content })).toThrow('YAML anchors form a cycle')
+    await expect(importApiSpec({ content })).rejects.toThrow('YAML anchors form a cycle')
   })
 
-  it('rejects YAML anchors that expand past the size limit', () => {
+  it('rejects YAML anchors that expand past the size limit', async () => {
     let anchors = '  l0: &l0 { type: string }\n'
     for (let level = 1; level <= 22; level++) {
       anchors += `  l${level}: &l${level} { type: object, properties: { a: *l${level - 1}, b: *l${level - 1} } }\n`
@@ -460,10 +460,12 @@ ${anchors}paths:
           application/json:
             schema: *l22
 `
-    expect(() => importApiSpec({ content })).toThrow('YAML anchors expand past the size limit')
+    await expect(importApiSpec({ content })).rejects.toThrow(
+      'YAML anchors expand past the size limit'
+    )
   })
 
-  it('keeps YAML anchors that expand to a normal size', () => {
+  it('keeps YAML anchors that expand to a normal size', async () => {
     const content = `openapi: 3.0.0
 info: { title: Shared, version: '1' }
 x-defs:
@@ -476,15 +478,17 @@ paths:
           application/json:
             schema: { type: object, properties: { owner: *user, editor: *user } }
 `
-    const result = importApiSpec({ content })
+    const result = await importApiSpec({ content })
     expect(JSON.parse(result.requests[0]?.body ?? '')).toEqual({
       owner: { name: '' },
       editor: { name: '' },
     })
   })
 
-  it('detects protobuf and GraphQL by filename', () => {
-    expect(detectApiImportFormat('service Test {}', 'test.proto')).toBe('protobuf')
-    expect(detectApiImportFormat('type Query { viewer: User }', 'schema.gql')).toBe('graphql')
+  it('detects protobuf and GraphQL by filename', async () => {
+    await expect(detectApiImportFormat('service Test {}', 'test.proto')).resolves.toBe('protobuf')
+    await expect(detectApiImportFormat('type Query { viewer: User }', 'schema.gql')).resolves.toBe(
+      'graphql'
+    )
   })
 })

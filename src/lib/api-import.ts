@@ -1,72 +1,83 @@
 import type { ApiImportFormat, ApiImportResult } from '@/types/models'
-import { importAsyncApi } from '@/lib/api-import/asyncapi'
-import { importDevdrivrJson } from '@/lib/api-import/devdrivr'
-import { importGraphql } from '@/lib/api-import/graphql'
-import { importOpenApi } from '@/lib/api-import/openapi'
-import { importPostman, isPostmanCollection } from '@/lib/api-import/postman'
-import { importProtobuf } from '@/lib/api-import/protobuf'
 import {
   asRecord,
+  isPostmanCollection,
   MAX_API_IMPORT_BYTES,
-  parseJsonOrYaml,
+  type PlainRecord,
   type SourceInput,
 } from '@/lib/api-import/shared'
 
 export { BODY_MODE_IDS, MAX_API_IMPORT_BYTES } from '@/lib/api-import/shared'
 
-export function importApiSpec(input: SourceInput): ApiImportResult {
+type DetectedFormat =
+  | { format: 'postman' | 'openapi' | 'asyncapi'; root: PlainRecord }
+  | { format: 'protobuf' | 'graphql' | 'devdrivr-json' }
+
+export async function importApiSpec(input: SourceInput): Promise<ApiImportResult> {
   if (new TextEncoder().encode(input.content).length > MAX_API_IMPORT_BYTES) {
     throw new Error('Import failed - input exceeds the 20 MB limit')
   }
   const content = input.content.trim()
-  if (!content) {
-    throw new Error('Import failed - input is empty')
-  }
+  if (!content) throw new Error('Import failed - input is empty')
 
-  const detected = detectApiImportFormat(content, input.filename)
-  switch (detected) {
+  const detected = await detectFormat(content, input.filename)
+  switch (detected?.format) {
     case 'postman':
-      return importPostman(content)
+      return (await import('@/lib/api-import/postman')).importPostman(detected.root)
     case 'openapi':
-      return importOpenApi(content)
+      return (await import('@/lib/api-import/openapi')).importOpenApi(detected.root)
     case 'asyncapi':
-      return importAsyncApi(content)
+      return (await import('@/lib/api-import/asyncapi')).importAsyncApi(detected.root)
     case 'protobuf':
-      return importProtobuf(content, input.filename)
+      return (await import('@/lib/api-import/protobuf')).importProtobuf(content, input.filename)
     case 'graphql':
-      return importGraphql(content, input.filename)
+      return (await import('@/lib/api-import/graphql')).importGraphql(content, input.filename)
     case 'devdrivr-json':
-      return importDevdrivrJson(content)
+      return (await import('@/lib/api-import/devdrivr')).importDevdrivrJson(content)
     default:
       throw new Error('Import failed - unsupported API specification')
   }
 }
 
-export function detectApiImportFormat(content: string, filename?: string): ApiImportFormat | null {
-  const lowerName = filename?.toLowerCase() ?? ''
-  if (lowerName.endsWith('.proto')) return 'protobuf'
-  if (lowerName.endsWith('.graphql') || lowerName.endsWith('.gql')) return 'graphql'
+export async function detectApiImportFormat(
+  content: string,
+  filename?: string
+): Promise<ApiImportFormat | null> {
+  return (await detectFormat(content, filename))?.format ?? null
+}
 
-  const parsed = parseJsonOrYaml(content)
-  if (Array.isArray(parsed)) return 'devdrivr-json'
+async function detectFormat(content: string, filename?: string): Promise<DetectedFormat | null> {
+  const lowerName = filename?.toLowerCase() ?? ''
+  if (lowerName.endsWith('.proto')) return { format: 'protobuf' }
+  if (lowerName.endsWith('.graphql') || lowerName.endsWith('.gql')) return { format: 'graphql' }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(content)
+  } catch {
+    parsed = (await import('@/lib/api-import/yaml')).parseYaml(content)
+  }
+
+  if (Array.isArray(parsed)) return { format: 'devdrivr-json' }
   const root = asRecord(parsed)
   if (root) {
     if ((root['version'] === 2 || root['version'] === 3) && Array.isArray(root['requests']))
-      return 'devdrivr-json'
-    if (isPostmanCollection(root)) return 'postman'
-    if (typeof root['openapi'] === 'string' || typeof root['swagger'] === 'string') return 'openapi'
-    if (typeof root['asyncapi'] === 'string') return 'asyncapi'
+      return { format: 'devdrivr-json' }
+    if (isPostmanCollection(root)) return { format: 'postman', root }
+    if (typeof root['openapi'] === 'string' || typeof root['swagger'] === 'string')
+      return { format: 'openapi', root }
+    if (typeof root['asyncapi'] === 'string') return { format: 'asyncapi', root }
   }
 
   if (/\bsyntax\s*=\s*["']proto3?["']/.test(content) || /\bservice\s+\w+\s*\{/.test(content)) {
-    return 'protobuf'
+    return { format: 'protobuf' }
   }
 
   if (
     /\b(query|mutation|subscription|schema|type|interface|input|fragment)\b/.test(content) &&
     /[{}]/.test(content)
   ) {
-    return 'graphql'
+    return { format: 'graphql' }
   }
 
   return null

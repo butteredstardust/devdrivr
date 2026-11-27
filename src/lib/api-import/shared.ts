@@ -1,4 +1,3 @@
-import * as yaml from 'js-yaml'
 import type {
   ApiHeader,
   ApiImportCollectionDraft,
@@ -12,7 +11,6 @@ export const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'O
 export const MAX_API_IMPORT_BYTES = 20 * 1024 * 1024
 const MAX_API_IMPORT_REQUESTS = 10_000
 const MAX_API_IMPORT_COLLECTIONS = 5_000
-const MAX_YAML_EXPANDED_NODES = 1_000_000
 
 export type HttpMethod = (typeof HTTP_METHODS)[number]
 export type PlainRecord = Record<string, unknown>
@@ -81,56 +79,10 @@ export function addCollection(
   return key
 }
 
-export function parseJsonOrYaml(content: string): unknown {
-  try {
-    return JSON.parse(content) as unknown
-  } catch {
-    let parsed: unknown
-    try {
-      parsed = yaml.load(content)
-    } catch {
-      return null
-    }
-    assertYamlExpansionBounded(parsed)
-    return parsed
-  }
-}
-
-/**
- * Rejects a YAML document whose anchors expand past the node limit or form a cycle.
- *
- * YAML anchors let a file of a few KB describe millions of nodes, or an object that contains itself.
- * Every importer walks the parsed tree without limits, so the check runs here, before any walk.
- * Shared subtrees are counted once per reference, and sizes are memoised, so the check is linear.
- */
-function assertYamlExpansionBounded(root: unknown): void {
-  const sizes = new Map<object, number>()
-  const inProgress = new Set<object>()
-  const expandedSize = (value: unknown): number => {
-    if (typeof value !== 'object' || value === null) return 1
-    const known = sizes.get(value)
-    if (known !== undefined) return known
-    if (inProgress.has(value)) throw new Error('Import failed - YAML anchors form a cycle')
-    inProgress.add(value)
-    let size = 1
-    for (const child of Object.values(value)) {
-      size += expandedSize(child)
-      if (size > MAX_YAML_EXPANDED_NODES) {
-        throw new Error('Import failed - YAML anchors expand past the size limit')
-      }
-    }
-    inProgress.delete(value)
-    sizes.set(value, size)
-    return size
-  }
-  expandedSize(root)
-}
-
-export function parseStructuredRecord(content: string, label: string): PlainRecord {
-  const parsed = parseJsonOrYaml(content)
-  const root = asRecord(parsed)
-  if (!root) throw new Error(`Import failed - ${label} must be an object`)
-  return root
+export function isPostmanCollection(root: PlainRecord): boolean {
+  const info = asRecord(root['info'])
+  const schema = asString(info?.['schema'])
+  return Boolean(info && Array.isArray(root['item']) && schema?.includes('postman'))
 }
 
 export function asRecord(value: unknown): PlainRecord | null {

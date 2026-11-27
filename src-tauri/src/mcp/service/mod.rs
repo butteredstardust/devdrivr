@@ -18,6 +18,7 @@ mod access;
 mod api_requests;
 mod args;
 mod discovery;
+mod discovery_help;
 mod domain_values;
 mod errors;
 mod fetch;

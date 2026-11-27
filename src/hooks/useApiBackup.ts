@@ -34,7 +34,7 @@ export async function importApiBackupContent(
   report: BackupReporter
 ): Promise<void> {
   try {
-    const parsed = importApiSpec({ content, filename })
+    const parsed = await importApiSpec({ content, filename })
     if (
       parsed.requests.length === 0 &&
       parsed.collections.length === 0 &&

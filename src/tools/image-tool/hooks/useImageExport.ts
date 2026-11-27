@@ -2,13 +2,8 @@ import { useCallback, useEffect, useRef, type Dispatch, type SetStateAction } fr
 import { buildExportFilename, exportFile } from '@/lib/file-io'
 import { formatBytes } from '@/lib/format'
 import { useUiStore } from '@/stores/ui.store'
-import {
-  JPEG_BACKGROUND,
-  MAX_IMAGE_DIMENSION,
-  MAX_IMAGE_PIXELS,
-  type ImageToolState,
-  type LoadedImage,
-} from '@/tools/image-tool/image-tool-model'
+import { renderImage } from '@/tools/image-tool/image-renderer'
+import type { ImageToolState, LoadedImage } from '@/tools/image-tool/image-tool-model'
 
 type UseImageExportOptions = {
   state: ImageToolState
@@ -42,66 +37,27 @@ export function useImageExport({
   useEffect(() => {
     const canvas = outputCanvasRef.current
     if (!canvas || !originalImg) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    const srcX = state.cropX
-    const srcY = state.cropY
-    const srcW = state.cropW ?? originalImg.naturalWidth
-    const srcH = state.cropH ?? originalImg.naturalHeight
-
-    const sourceOutW = Math.round(state.resizeW ?? srcW)
-    const sourceOutH = Math.round(state.resizeH ?? srcH)
-    const quarterTurn = state.rotation === 90 || state.rotation === 270
-    const outW = quarterTurn ? sourceOutH : sourceOutW
-    const outH = quarterTurn ? sourceOutW : sourceOutH
-
-    if (
-      !Number.isFinite(outW) ||
-      !Number.isFinite(outH) ||
-      outW < 1 ||
-      outH < 1 ||
-      outW > MAX_IMAGE_DIMENSION ||
-      outH > MAX_IMAGE_DIMENSION ||
-      outW * outH > MAX_IMAGE_PIXELS
-    ) {
-      const reason = `Output exceeds the ${MAX_IMAGE_DIMENSION.toLocaleString()}px per side or ${MAX_IMAGE_PIXELS.toLocaleString()}px² limit`
-      if (canvas.width !== 1) canvas.width = 1
-      if (canvas.height !== 1) canvas.height = 1
+    const result = renderImage(canvas, originalImg, {
+      cropX: state.cropX,
+      cropY: state.cropY,
+      cropW: state.cropW,
+      cropH: state.cropH,
+      resizeW: state.resizeW,
+      resizeH: state.resizeH,
+      rotation: state.rotation,
+      flipX: state.flipX,
+      flipY: state.flipY,
+      format: state.format,
+    })
+    if (!result) return
+    if ('error' in result) {
       setOutputSize(null)
       setOutputBlobSize(0)
-      setOutputError(reason)
-      setLastAction(reason, 'error')
+      setOutputError(result.error)
+      setLastAction(result.error, 'error')
       return
     }
-
-    if (canvas.width !== outW) canvas.width = outW
-    if (canvas.height !== outH) canvas.height = outH
-    ctx.clearRect(0, 0, outW, outH)
-    // JPEG carries no alpha. Fill a fixed white matte so a transparent source
-    // exports the same file in every theme.
-    if (state.format === 'jpeg') {
-      ctx.fillStyle = JPEG_BACKGROUND
-      ctx.fillRect(0, 0, outW, outH)
-    }
-    ctx.save()
-    ctx.translate(outW / 2, outH / 2)
-    ctx.rotate((state.rotation * Math.PI) / 180)
-    ctx.scale(state.flipX ? -1 : 1, state.flipY ? -1 : 1)
-    ctx.drawImage(
-      originalImg.drawable,
-      srcX,
-      srcY,
-      srcW,
-      srcH,
-      -sourceOutW / 2,
-      -sourceOutH / 2,
-      sourceOutW,
-      sourceOutH
-    )
-    ctx.restore()
-
-    setOutputSize({ w: outW, h: outH })
+    setOutputSize(result)
     setOutputError(null)
 
     const mimeType =

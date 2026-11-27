@@ -13,7 +13,6 @@ import {
   DEFAULT_HEADER,
   finishBuilder,
   getInfoTitle,
-  parseStructuredRecord,
   readExample,
   schemaToExample,
   stringifyBody,
@@ -21,8 +20,7 @@ import {
   type PlainRecord,
 } from '@/lib/api-import/shared'
 
-export function importOpenApi(content: string): ApiImportResult {
-  const root = parseStructuredRecord(content, 'OpenAPI document')
+export function importOpenApi(root: PlainRecord): ApiImportResult {
   const title = getInfoTitle(root) ?? 'OpenAPI Import'
   const builder = createBuilder('openapi', title)
   const baseUrl = firstOpenApiServerUrl(root) ?? '{{baseUrl}}'

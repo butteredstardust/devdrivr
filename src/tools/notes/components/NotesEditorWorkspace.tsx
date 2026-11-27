@@ -1,3 +1,4 @@
+import { NOTE_SAVE_LABELS, type NoteSaveState } from '@/lib/note-presentation'
 import type {
   ClipboardEventHandler,
   ComponentProps,
@@ -43,7 +44,7 @@ type NotesEditorWorkspaceProps = {
   selected: Note | null
   state: NotesWorkspaceState
   updateState: UpdateNotesWorkspaceState
-  saveState: string | null
+  saveState: NoteSaveState | null
   noteFolders: ResourceFolder[]
   monacoTheme: string
   noteEditorOptions: NonNullable<ComponentProps<typeof Editor>['options']>
@@ -124,12 +125,10 @@ export function NotesEditorWorkspace({
           <p
             aria-live="polite"
             className={`text-2xs ${
-              saveState === 'Save failed'
-                ? 'text-[var(--color-error)]'
-                : 'text-[var(--color-text-muted)]'
+              saveState === 'error' ? 'text-[var(--color-error)]' : 'text-[var(--color-text-muted)]'
             }`}
           >
-            {saveState}
+            {saveState ? NOTE_SAVE_LABELS[saveState] : null}
           </p>
         </div>
         <SegmentedControl

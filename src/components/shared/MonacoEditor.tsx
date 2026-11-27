@@ -1,7 +1,6 @@
-// Side-effect import: points the loader at the bundled Monaco. See `monaco-runtime.ts`.
-import '@/lib/monaco-runtime'
+import { isMonacoLanguageReady, loadMonacoLanguage } from '@/lib/monaco-runtime'
 import Editor, { type EditorProps, type OnMount } from '@monaco-editor/react'
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { editor } from 'monaco-editor'
 
 /**
@@ -13,7 +12,18 @@ import type { editor } from 'monaco-editor'
  * applied editor-originated changes to its model, so only push into that model when its current
  * value differs (selection changes, format actions, tool handoffs, and other external updates).
  */
-export function MonacoEditor({ value, defaultValue, onChange, onMount, ...props }: EditorProps) {
+export function MonacoEditor({
+  value,
+  defaultValue,
+  language,
+  defaultLanguage,
+  onChange,
+  onMount,
+  ...props
+}: EditorProps) {
+  const requestedLanguage = language ?? defaultLanguage
+  const languageReady = !requestedLanguage || isMonacoLanguageReady(requestedLanguage)
+  const [, setLoadedLanguage] = useState<string>()
   const onChangeRef = useRef(onChange)
   const onMountRef = useRef(onMount)
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
@@ -22,6 +32,22 @@ export function MonacoEditor({ value, defaultValue, onChange, onMount, ...props 
   onChangeRef.current = onChange
   onMountRef.current = onMount
   valueRef.current = value
+
+  useEffect(() => {
+    if (!requestedLanguage || languageReady) return
+    let active = true
+    void loadMonacoLanguage(requestedLanguage).then(
+      () => {
+        if (active) setLoadedLanguage(requestedLanguage)
+      },
+      (error: unknown) => {
+        if (active) console.error('[monaco] Failed to load language', requestedLanguage, error)
+      }
+    )
+    return () => {
+      active = false
+    }
+  }, [languageReady, requestedLanguage])
 
   const handleMount = useCallback<OnMount>((instance, monaco) => {
     editorRef.current = instance
@@ -49,6 +75,7 @@ export function MonacoEditor({ value, defaultValue, onChange, onMount, ...props 
   return (
     <Editor
       {...props}
+      {...(requestedLanguage ? { language: languageReady ? requestedLanguage : 'plaintext' } : {})}
       {...(initialValueRef.current !== undefined ? { defaultValue: initialValueRef.current } : {})}
       {...testValueProps}
       onMount={handleMount}

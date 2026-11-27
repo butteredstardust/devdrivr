@@ -6,4 +6,10 @@
  * on `UIEvent is not defined` under this suite's `environment: 'node'` — and there is nothing for
  * it to configure anyway, since `@monaco-editor/react` is aliased to a mock here too.
  */
-export {}
+export function isMonacoLanguageReady() {
+  return true
+}
+
+export function loadMonacoLanguage() {
+  return Promise.resolve()
+}

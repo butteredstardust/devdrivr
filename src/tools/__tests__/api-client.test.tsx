@@ -441,7 +441,7 @@ describe('ApiClient', () => {
       activeEnvironmentKey: 'environment-1',
     })
 
-    const imported = importApiSpec({ content: exported as string })
+    const imported = await importApiSpec({ content: exported as string })
     expect(imported.collections).toEqual([
       { key: 'collection-1', name: 'Accounts', parentKey: null, sortOrder: 0 },
     ])
@@ -495,7 +495,9 @@ describe('ApiClient', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Export full backup' }))
 
     await waitFor(() => expect(exportFile).toHaveBeenCalledOnce())
-    const imported = importApiSpec({ content: vi.mocked(exportFile).mock.calls[0]?.[0] as string })
+    const imported = await importApiSpec({
+      content: vi.mocked(exportFile).mock.calls[0]?.[0] as string,
+    })
     expect(imported.collections).toEqual([
       { key: 'collection-1', name: 'Users', parentKey: null, sortOrder: 0 },
       { key: 'collection-2', name: 'users', parentKey: null, sortOrder: 0 },

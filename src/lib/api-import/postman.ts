@@ -4,19 +4,18 @@ import {
   appendQueryParams,
   asArray,
   asRecord,
+  isPostmanCollection,
   asString,
   createBuilder,
   finishBuilder,
   normalizeAuth,
   normalizeHeaders,
   normalizeMethod,
-  parseStructuredRecord,
   type ImportBuilder,
   type PlainRecord,
 } from '@/lib/api-import/shared'
 
-export function importPostman(content: string): ApiImportResult {
-  const root = parseStructuredRecord(content, 'Postman collection')
+export function importPostman(root: PlainRecord): ApiImportResult {
   if (!isPostmanCollection(root)) {
     throw new Error('Import failed - unsupported Postman collection')
   }
@@ -121,12 +120,6 @@ function readPostmanKeyValue(entries: unknown[], key: string): string | null {
     if (obj?.['key'] === key && typeof obj['value'] === 'string') return obj['value']
   }
   return null
-}
-
-export function isPostmanCollection(root: PlainRecord): boolean {
-  const info = asRecord(root['info'])
-  const schema = asString(info?.['schema'])
-  return Boolean(info && Array.isArray(root['item']) && schema?.includes('postman'))
 }
 
 function readPostmanName(root: PlainRecord): string | null {

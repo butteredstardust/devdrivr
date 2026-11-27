@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { queryJsonPath } from '@/lib/json-path'
 import { parseYamlStream, yamlStats, type YamlParse } from '@/tools/yaml-tools/yaml-helpers'
 
@@ -7,11 +8,7 @@ export function useYamlInspection(input: string, query: string) {
   // the buffer: on a large manifest doing it per keystroke costs a frame, and a
   // live region that re-announces the whole verdict on every character is
   // unusable with a screen reader.
-  const [parseSource, setParseSource] = useState(input)
-  useEffect(() => {
-    const timer = setTimeout(() => setParseSource(input), 250)
-    return () => clearTimeout(timer)
-  }, [input])
+  const parseSource = useDebouncedValue(input, 250)
 
   const parsed = useMemo<YamlParse>(() => parseYamlStream(parseSource), [parseSource])
   const isValid = parsed.status === 'valid'
