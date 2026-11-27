@@ -56,9 +56,8 @@ describe('HASH_ALGORITHMS', () => {
 
 describe('computeFileHashes', () => {
   it('agrees with the one-shot digest across many chunk boundaries', async () => {
-    // 10 MiB crosses the 4 MiB chunk size twice and ends mid-chunk, which is where a streaming
-    // implementation that mishandles the tail would diverge.
-    const bytes = new Uint8Array(10 * 1024 * 1024)
+    // Two full 4 MiB chunks and a short tail catch dropped intermediate or partial chunks.
+    const bytes = new Uint8Array(8 * 1024 * 1024 + 257)
     for (let i = 0; i < bytes.length; i += 1) bytes[i] = i % 251
     const streamed = await computeFileHashes(new Blob([bytes]))
     expect(streamed).toEqual(hashBytes(bytes))

@@ -66,3 +66,7 @@ tauri-plugin-single-instance = "2"
 # direct coverage.
 [dev-dependencies]
 tauri = { version = "2", features = ["test"] }
+
+[profile.test]
+# Keep source locations in backtraces while reducing the debug info Cargo builds and links.
+debug = "line-tables-only"

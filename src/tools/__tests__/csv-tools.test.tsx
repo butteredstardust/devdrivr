@@ -29,8 +29,6 @@ vi.mock('@/lib/file-io', () => ({
 }))
 
 const SAMPLE = 'name,age\nAlice,30\nBob,25'
-// The parse is debounced. Under a full parallel run it can take longer than the 1s default.
-const WAIT = { timeout: 5000 }
 
 function editor() {
   return screen.getAllByTestId('monaco-editor')[0] as HTMLTextAreaElement
@@ -385,18 +383,26 @@ describe('CsvTools', () => {
     expect(editor()).toHaveValue('')
   })
 
-  it('sorts the table by a column from the keyboard', async () => {
-    renderTool(CsvTools)
-    typeCsv(SAMPLE)
+  it('sorts the table through the column header button', () => {
+    vi.useFakeTimers()
+    try {
+      renderTool(CsvTools)
+      typeCsv(SAMPLE)
+      act(() => {
+        vi.advanceTimersByTime(250)
+      })
 
-    const header = await screen.findByRole('columnheader', { name: 'name' }, WAIT)
-    // Sorting used to be a click handler on the <th>, unreachable by keyboard
-    // and invisible to screen readers.
-    fireEvent.click(within(header).getByRole('button'))
+      const header = screen.getByRole('columnheader', { name: 'name' })
+      fireEvent.click(within(header).getByRole('button'))
 
-    await waitFor(() => expect(header).toHaveAttribute('aria-sort', 'ascending'), WAIT)
-    // Two WAITs in a row need more than the 5 s default test timeout on a loaded runner.
-  }, 15_000)
+      expect(screen.getByRole('columnheader', { name: 'name' })).toHaveAttribute(
+        'aria-sort',
+        'ascending'
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 
   it('filters table rows without touching the source', async () => {
     renderTool(CsvTools)
