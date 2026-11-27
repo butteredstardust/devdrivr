@@ -232,6 +232,7 @@ export type TaskPriority = (typeof TASK_PRIORITIES)[number]
 
 export type Note = {
   id: string
+  externalKey?: string
   title: string
   content: string
   color: NoteColor

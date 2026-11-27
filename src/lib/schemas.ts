@@ -67,6 +67,7 @@ export const noteRowSchema = z
     task_status: z.enum(TASK_STATUSES).nullable().optional(),
     task_priority: z.enum(TASK_PRIORITIES).nullable().optional(),
     task_due_date: z.string().nullable().optional(),
+    external_key: z.string().nullable().optional(),
   })
   .transform((row): Note => {
     const note: Note = {
@@ -94,6 +95,7 @@ export const noteRowSchema = z
     if (row.task_status != null) note.taskStatus = row.task_status
     if (row.task_priority != null) note.taskPriority = row.task_priority
     if (row.task_due_date != null) note.taskDueDate = row.task_due_date
+    if (row.external_key != null) note.externalKey = row.external_key
     if (
       row.window_x != null &&
       row.window_y != null &&

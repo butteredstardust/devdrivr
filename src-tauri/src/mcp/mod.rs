@@ -4,10 +4,11 @@ mod types;
 use std::{io::ErrorKind, net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
 use axum::{
-    extract::{DefaultBodyLimit, State},
-    http::{HeaderMap, StatusCode},
+    body::{to_bytes, Body},
+    extract::{Request, State},
+    http::{HeaderMap, Method, StatusCode},
     middleware::{self, Next},
-    response::Response,
+    response::{IntoResponse, Response},
     routing::get,
     Router,
 };
@@ -25,7 +26,7 @@ pub use types::{McpSettings, McpStatus};
 type SharedSettings = Arc<RwLock<McpSettings>>;
 
 /// Largest MCP request body accepted. Every tool argument fits well inside it.
-const MAX_REQUEST_BODY_BYTES: usize = 8 * 1024 * 1024;
+const MAX_REQUEST_BODY_BYTES: usize = 64 * 1024 * 1024;
 /// Lowest port the server binds. Ports below this need privileges on Unix.
 const MIN_MCP_PORT: u16 = 1024;
 /// Shortest API key accepted. `mcp_rotate_key` produces 64 hex characters.
@@ -222,9 +223,7 @@ async fn start_server(
     let router = Router::new()
         .route("/health", get(health))
         .nest_service("/mcp", mcp_service)
-        // Bounds the body before it is buffered. Without it a single request could hold as much
-        // memory as the caller cared to send.
-        .layer(DefaultBodyLimit::max(MAX_REQUEST_BODY_BYTES))
+        .layer(middleware::from_fn(limit_mcp_body))
         .layer(middleware::from_fn_with_state(
             shared_settings.clone(),
             auth_middleware,
@@ -258,6 +257,26 @@ async fn start_server(
         shutdown_running(running).await;
     }
     Ok(status)
+}
+
+/// Bounds the MCP request body before it is buffered. rmcp collects the raw body itself instead
+/// of using an Axum extractor, so `DefaultBodyLimit` does not apply to it.
+async fn limit_mcp_body(request: Request, next: Next) -> Response {
+    if request.method() != Method::POST {
+        return next.run(request).await;
+    }
+    let (parts, body) = request.into_parts();
+    match to_bytes(body, MAX_REQUEST_BODY_BYTES).await {
+        Ok(bytes) => {
+            next.run(Request::from_parts(parts, Body::from(bytes)))
+                .await
+        }
+        Err(_) => (
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "MCP request body exceeds 64 MiB",
+        )
+            .into_response(),
+    }
 }
 
 /// WARNING: the only gate on the bind address and the key. The settings UI checks the same

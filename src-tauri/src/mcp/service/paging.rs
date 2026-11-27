@@ -214,7 +214,7 @@ pub(super) fn decode_cursor(cursor: &str) -> std::result::Result<usize, McpError
             ],
         )
     };
-    if !cursor.len().is_multiple_of(2) {
+    if !cursor.is_ascii() || !cursor.len().is_multiple_of(2) {
         return Err(bad_cursor());
     }
     let bytes = (0..cursor.len())
@@ -290,6 +290,12 @@ impl PageRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_non_ascii_cursor_returns_an_invalid_argument() {
+        let error = decode_cursor("🧪").unwrap_err();
+        assert_eq!(error.data.unwrap()["argument"], "cursor");
+    }
 
     #[test]
     fn limit_defaults_clamps_and_rejects_invalid_values() {

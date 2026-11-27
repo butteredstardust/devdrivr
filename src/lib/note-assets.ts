@@ -1,12 +1,15 @@
 import { convertFileSrc, invoke } from '@tauri-apps/api/core'
 import { MAX_NOTE_IMAGE_BYTES } from '@/lib/file-limits'
+import { markdownProcessor } from '@/lib/markdown'
 import { NOTE_COLORS, TASK_PRIORITIES, TASK_STATUSES } from '@/lib/domain-values'
 import type { Note, NoteColor, ResourceFolder, TaskPriority, TaskStatus } from '@/types/models'
 
 const ASSET_ID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 const ASSET_URL_PATTERN = new RegExp(`devdrivr-asset:(${ASSET_ID})`, 'g')
 const ASSET_ID_PATTERN = new RegExp(`^${ASSET_ID}$`)
-const ASSET_IMAGE_PATTERN = new RegExp(`!\\[([^\\]]*)\\]\\(devdrivr-asset:(${ASSET_ID})\\)`, 'g')
+const ASSET_IMAGE_TARGET = new RegExp(
+  String.raw`\]\(\s*(<devdrivr-asset:${ASSET_ID}>|devdrivr-asset:${ASSET_ID})(?:\s+(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\((?:\\.|[^)\\])*\)))?\s*\)$`
+)
 
 export type NoteAsset = {
   id: string
@@ -39,6 +42,7 @@ export type NoteBackupEntry = Pick<
   | 'taskStatus'
   | 'taskPriority'
   | 'taskDueDate'
+  | 'externalKey'
 >
 
 export type NoteFolderBackupEntry = Pick<
@@ -131,11 +135,32 @@ export async function resolveNoteAssetMarkdown(content: string): Promise<string>
       }
     })
   )
-  ASSET_IMAGE_PATTERN.lastIndex = 0
-  return content.replace(ASSET_IMAGE_PATTERN, (_match, alt: string, id: string) => {
-    const url = resolved.get(id)
-    return url ? `![${alt}](${url})` : `**[Missing image: ${alt || 'image'}]**`
-  })
+  const edits: { start: number; end: number; text: string }[] = []
+  type Document = ReturnType<typeof markdownProcessor.parse>
+  function visit(node: Document | Document['children'][number]) {
+    if (node.type === 'image' && node.url.startsWith('devdrivr-asset:')) {
+      const start = node.position?.start.offset
+      const end = node.position?.end.offset
+      const url = resolved.get(node.url.slice('devdrivr-asset:'.length))
+      if (start === undefined || end === undefined || url === undefined) return
+      if (url === null) {
+        edits.push({ start, end, text: `**[Missing image: ${node.alt || 'image'}]**` })
+        return
+      }
+      const target = ASSET_IMAGE_TARGET.exec(content.slice(start, end))
+      if (target?.[1]) {
+        const targetStart = start + target.index + target[0].indexOf(target[1])
+        edits.push({ start: targetStart, end: targetStart + target[1].length, text: url })
+      }
+    } else if ('children' in node) {
+      node.children.forEach(visit)
+    }
+  }
+  visit(markdownProcessor.parse(content))
+  for (const { start, end, text } of edits.reverse()) {
+    content = content.slice(0, start) + text + content.slice(end)
+  }
+  return content
 }
 
 export async function createNotesBackup(notes: Note[], folders: ResourceFolder[]): Promise<string> {
@@ -155,6 +180,7 @@ export async function createNotesBackup(notes: Note[], folders: ResourceFolder[]
     ...(note.taskStatus ? { taskStatus: note.taskStatus } : {}),
     ...(note.taskPriority ? { taskPriority: note.taskPriority } : {}),
     ...(note.taskDueDate ? { taskDueDate: note.taskDueDate } : {}),
+    ...(note.externalKey !== undefined ? { externalKey: note.externalKey } : {}),
   }))
   const backup: NotesBackupV2 = {
     format: 'devdrivr-notes',
@@ -236,6 +262,12 @@ function parseVersion2Note(value: unknown): Note {
   ) {
     throw new Error('Backup contains an invalid note')
   }
+  if (
+    value.externalKey !== undefined &&
+    (typeof value.externalKey !== 'string' || [...value.externalKey].length > 512)
+  ) {
+    throw new Error('Backup contains an invalid external key')
+  }
   return {
     id: value.id,
     title: legacy.title,
@@ -251,6 +283,7 @@ function parseVersion2Note(value: unknown): Note {
     ...(legacy.taskStatus ? { taskStatus: legacy.taskStatus } : {}),
     ...(legacy.taskPriority ? { taskPriority: legacy.taskPriority } : {}),
     ...(legacy.taskDueDate ? { taskDueDate: legacy.taskDueDate } : {}),
+    ...(value.externalKey !== undefined ? { externalKey: value.externalKey } : {}),
   }
 }
 

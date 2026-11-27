@@ -299,6 +299,7 @@ Primary resources:
 Quick start:
 - Search everything: `search({{"query":"react","limit":10}})`
 - Search tagged snippets: `search({{"types":["snippets"],"tags":["react","hooks"]}})`
+- Sync Markdown and screenshots by stable identity: `notes_upsert` and `note_assets_upload`
 - Inspect schemas: `introspect()`
 - Count resources: `counts()`
 - Fetch selected records: `multi_get({{"ids":[{{"type":"notes","id":"..."}}]}})`
@@ -313,6 +314,13 @@ Use `help({{"topic":"tools"}})` for the tool reference and `help({{"topic":"clie
 }
 
 fn permission_for_tool(name: &str) -> &'static str {
+    match name {
+        "notes_upsert" => return "notes.create for new notes, notes.update for existing notes",
+        "note_assets_upload" => return "notes.create or notes.update",
+        "note_assets_list" => return "notes.read",
+        "note_assets_delete" => return "notes.delete",
+        _ => {}
+    }
     let resource = if name.starts_with("resource_folders_") {
         return "kind-specific resource permission";
     } else if name.starts_with("notes_") {
@@ -367,7 +375,10 @@ fn tool_pitfall(name: &str) -> &'static str {
         "help" => "The API key is never returned; copy it from Settings > MCP.",
         "prompt_templates_delete" => "Built-in templates cannot be deleted. Update a built-in to create a user-owned copy.",
         "trash_list" => "Prompt templates are deleted outright and never appear in Trash.",
-        "trash_restore" => "Restoring is charged to the update permission, not to delete.",
+        "trash_restore" => "Restoring requires update permission. A live note holding the same externalKey prevents the restore.",
+        "notes_list" => "Pass includeContent: true for full Markdown. A folder path filter must already exist.",
+        "notes_upsert" => "Use an exact inline image destination for each assets.ref and reuse externalKey on later syncs.",
+        "note_assets_delete" => "A reference from either a live or trashed note prevents deletion.",
         "api_requests_list" | "api_requests_get" => {
             "Auth secrets are redacted unless API request secret exposure is enabled in MCP settings."
         }
@@ -476,6 +487,15 @@ fn help_workflows() -> String {
 2. Confirm the MCP URL and port shown by `help({"topic":"clients"})`.
 3. Export `DEVDRIVR_MCP_KEY` from the key shown in Settings > MCP.
 4. Restart the MCP client after changing permissions or the key.
+
+### Sync a folder of guides
+
+1. Assign each guide a stable `externalKey` and keep its source Markdown and screenshots together.
+2. Call `notes_upsert` with up to 100 items. Include `folder: "Work/Guides"` and an `assets` entry with the exact image destination as `ref` and either base64 `data` or an absolute server-local `path`. Missing folders require `notes.create`.
+3. Reuse the same keys and refs on later runs. Read each result's status and ID. To fetch a guide's current version or content, use `notes_list({ "externalKey": "guide-key" })` and `notes_get`.
+4. For a standalone image, call `note_assets_upload` and use the returned `devdrivr-asset:<uuid>` URL in Markdown. `note_assets_list` reports note references including Trash, and `note_assets_delete` requires the image to be unreferenced.
+
+Notes render CommonMark with GFM tables, strikethrough, autolinks and task lists. Raw HTML is discarded and output is sanitized. Place an italic line below an image for a caption.
 "#
     .to_string()
 }
@@ -541,7 +561,8 @@ fn help_schema(settings: &McpSettings) -> String {
 Use `introspect()` for complete resource fields, examples, permissions, and redaction metadata.
 
 Primary resource types:
-- `notes`: fields include `id`, `title`, `content`, `color`, `pinned`, `folderId`, `folderPath`, `tags`, optional `taskStatus`, `taskPriority`, `taskDueDate`, `createdAt`, `updatedAt`.
+- Behavior change: `notes_list` omits `content` by default and returns `contentLength` in bytes. Use `includeContent: true`, `notes_get` or `multi_get` for full content. Filter by `folderId` or `folder` (path), `tag`, `externalKey` and `query`.
+- `notes`: fields include `id`, `externalKey`, `title`, `content`, `color`, `pinned`, `folderId`, `folderPath`, `tags`, optional `taskStatus`, `taskPriority`, `taskDueDate`, `createdAt`, `updatedAt`.
 - `snippets`: fields include `id`, `title`, Markdown `description`, ordered `fragments`, legacy primary `content`/`language`, `folderId`, `folderPath`, legacy `folder`, `tags`, `createdAt`, `updatedAt`.
 - `promptTemplates`: fields include `id`, `name`, `prompt`, `variables`, `author`, `tags`, `estimatedTokens`, `createdAt`, `updatedAt`.
 - `apiRequests`: fields include `id`, `folderId`, `folderPath`, legacy `collectionId`, `name`, `method`, `url`, `headers`, `body`, `bodyMode`, `auth`.
@@ -550,7 +571,7 @@ Limits:
 - Search and list default to `{default_results}` results and cap at `{max_results}`.
 - List responses carry `total`, `limit` and `hasMore`. Raise `limit` when `hasMore` is true.
 - `multi_get` accepts at most `{max_multi_get}` IDs.
-- A request body is capped at 8 MiB. A single text field is capped at 1 MiB.
+- A request body is capped at 64 MiB. A single text field is capped at 1 MiB, except for base64 image data in `note_assets_upload` and `notes_upsert` (10 MiB decoded per image).
 - A list field accepts at most `{max_items}` items. A tool call is cancelled after `{tool_timeout}`s.
 - Update and delete accept `expectedUpdatedAt`. Send the `updatedAt` you read to be told about a
   concurrent edit instead of overwriting it.
@@ -734,11 +755,13 @@ impl DevdrivrMcpService {
         to_json_text(json!({
             "resources": {
                 "notes": {
-                    "description": "User notes with markdown-compatible content.",
+                    "description": "User notes with CommonMark and GFM content. notes_list omits content by default, returning contentLength in bytes. notes_get and multi_get return full content.",
                     "fields": {
                         "id": "string",
                         "title": "string",
-                        "content": "string",
+                        "externalKey": "string|null (unique among live notes, up to 512 characters)",
+                        "content": "string (up to 1 MiB, managed images use devdrivr-asset:<uuid>)",
+                        "contentLength": "number (UTF-8 bytes, in compact list results)",
                         "color": NOTE_COLORS.join("|"),
                         "pinned": "boolean",
                         "poppedOut": "boolean",
@@ -759,11 +782,26 @@ impl DevdrivrMcpService {
                     "tags": true,
                     "createRequired": [],
                     "updateRequired": ["id"],
+                    "folderInput": "Pass folderId or a slash-separated folder path. Writes may create missing segments with notes.create.",
+                    "listFilters": ["query", "folderId", "folder", "tag", "externalKey", "includeContent", "limit", "cursor"],
+                    "upsert": {
+                        "maxItems": 100,
+                        "requiredPerItem": ["externalKey"],
+                        "statuses": ["created", "updated", "unchanged", "error"],
+                        "optionalPerItem": ["title", "content", "color", "pinned", "tags", "folderId", "folder", "assets", "expectedUpdatedAt"],
+                        "permissions": { "created": "notes.create", "updated": "notes.update", "unchanged": "notes.update" }
+                    },
                     "example": {
                         "title": "Architecture notes",
                         "content": "Decision notes...",
                         "tags": ["architecture"]
                     }
+                },
+                "noteAssets": {
+                    "description": "Managed PNG, JPEG, GIF and WebP assets (10 MiB decoded). Asset references include notes in Trash.",
+                    "urlScheme": "devdrivr-asset:<uuid>",
+                    "uploads": "Supply data (standard base64) or path (absolute server-local path), with an optional stable key and filename.",
+                    "permissions": { "upload": "notes.create or notes.update", "list": "notes.read", "delete": "notes.delete" }
                 },
                 "snippets": {
                     "description": "Reusable code or text snippets with ordered fragments.",
@@ -887,7 +925,7 @@ impl DevdrivrMcpService {
             },
             "tools": {
                 "discovery": ["help", "search", "multi_get", "introspect", "counts"],
-                "notes": ["notes_list", "notes_get", "notes_create", "notes_update", "notes_delete", "resource_folders_list", "resource_folders_create", "resource_folders_update", "resource_folders_move", "resource_folders_trash", "resource_folders_restore", "resource_folders_permanent_delete", "resource_folders_empty_trash"],
+                "notes": ["notes_list", "notes_get", "notes_create", "notes_update", "notes_delete", "notes_upsert", "note_assets_upload", "note_assets_list", "note_assets_delete", "resource_folders_list", "resource_folders_create", "resource_folders_update", "resource_folders_move", "resource_folders_trash", "resource_folders_restore", "resource_folders_permanent_delete", "resource_folders_empty_trash"],
                 "snippets": ["snippets_list", "snippets_get", "snippets_create", "snippets_update", "snippets_delete", "resource_folders_list", "resource_folders_create", "resource_folders_update", "resource_folders_move", "resource_folders_trash", "resource_folders_restore", "resource_folders_permanent_delete", "resource_folders_empty_trash"],
                 "promptTemplates": ["prompt_templates_list", "prompt_templates_get", "prompt_templates_create", "prompt_templates_update", "prompt_templates_delete"],
                 "apiRequests": ["api_requests_list", "api_requests_get", "api_requests_create", "api_requests_update", "api_requests_delete", "resource_folders_list", "resource_folders_create", "resource_folders_update", "resource_folders_move", "resource_folders_trash", "resource_folders_restore", "resource_folders_permanent_delete", "resource_folders_empty_trash"],
