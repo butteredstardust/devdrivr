@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  lint-and-test:
+  frontend-checks:
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -28,8 +28,6 @@ jobs:
         with:
           bun-version-file: package.json
 
-      # Vitest runs on Node. The SQLite integration tests need the built-in `node:sqlite`, and the
-      # Windows-1252 tests need Node 24: Node 22 decodes that encoding as Latin-1.
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
@@ -47,16 +45,44 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
-      - name: Unit & component tests
-        run: bun run test
-
       - name: Tool contract audit
         run: bun run audit:tools --gate
+
+  frontend-tests:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      # SQLite and Windows-1252 tests depend on Node 24 behavior.
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Unit & component tests
+        run: bunx vitest run --shard=${{ matrix.shard }}/2
 
   rust-check:
     permissions:
       contents: read
     runs-on: ubuntu-26.04
+    env:
+      # Keep source locations while reducing debug info in Clippy's dev-profile build.
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
     steps:
       - uses: actions/checkout@v7
 
@@ -68,19 +94,26 @@ jobs:
         with:
           workspaces: src-tauri -> target
 
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@073e1fd0bc889c9aee68dbaaa927cde1b5653a83 # v2.90.11
+        with:
+          tool: cargo-nextest@0.9.152
+          fallback: none
+
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      - name: Cargo check
-        working-directory: src-tauri
-        run: cargo check
-
       - name: Cargo clippy
         working-directory: src-tauri
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --locked -- -D warnings
 
-      - name: Cargo test
+      - name: Rust tests
         working-directory: src-tauri
-        run: cargo test
+        run: cargo nextest run --locked
+
+      # Stable nextest does not run doctests.
+      - name: Rust doctests
+        working-directory: src-tauri
+        run: cargo test --locked --doc

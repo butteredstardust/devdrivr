@@ -179,7 +179,7 @@ Use **Check Now** in Settings to check manually.
 | State         | Zustand 5                              |
 | Persistence   | SQLite via tauri-plugin-sql (WAL mode) |
 | Build         | Vite 7                                 |
-| Tests         | Vitest                                 |
+| Tests         | Vitest, cargo-nextest                  |
 
 ---
 
@@ -206,12 +206,18 @@ bun run tauri dev
 # Type-check
 npx tsc --noEmit
 
-# Run tests
+# Run frontend tests
 bun run test
+
+# Run Rust tests (install cargo-nextest first)
+cargo nextest run --locked --manifest-path src-tauri/Cargo.toml
+cargo test --locked --doc --manifest-path src-tauri/Cargo.toml
 
 # Production build
 bun run tauri build
 ```
+
+Install the Rust test runner from [cargo-nextest’s prebuilt binaries](https://nexte.st/docs/installation/pre-built-binaries/).
 
 Local `tauri build` output is unsigned. Your bundle shows the same Gatekeeper or SmartScreen prompt as an unsigned release artifact.
 

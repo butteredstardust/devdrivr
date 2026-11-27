@@ -4,13 +4,12 @@ Use this document to select, write, and run tests in devdrivr.
 
 ## Overview
 
-devdrivr uses Vitest with jsdom. Tests validate behaviour and prevent regressions with maintainable
-coverage.
+devdrivr uses Vitest for TypeScript tests and cargo-nextest for Rust tests.
 
 ## Current Test Coverage
 
-The application has 1893 tests in 137 test files. They cover stores, database and migration
-contracts, worker RPC lifecycle behaviour, shared utilities, shell components, and tool behaviour.
+The suite covers stores, database and migration contracts, worker RPC lifecycle behaviour, shared
+utilities, shell components, and tool behaviour.
 
 API Client tests cover persistence CRUD, atomic imports, export/import round trips, relationship
 preservation, and secret-redacted MCP serialization. MCP tests cover least-privilege defaults,
@@ -32,11 +31,20 @@ listeners, tool action dispatch, write failures, and image input/export errors.
 
 `vitest.config.ts`:
 
-- Environment: `jsdom`
+- The `node` project runs suites matched by `nodeTests` without browser globals. Check the existing
+  patterns when adding tests. Only include files whose tests and dependencies can run in Node.
+- The `dom` project runs the remaining suites. Its `src/test-setup.ts` installs jsdom globals and
+  `@testing-library/jest-dom` matchers.
 - Global APIs enabled (no need to import `describe`, `it`, `expect`)
-- Setup file: `src/test-setup.ts` (loads `@testing-library/jest-dom` matchers)
 - Path alias: `@/` → `src/`
 - CSS disabled (avoids CSS variable resolution issues in jsdom)
+
+Run the full TypeScript suite with `bunx vitest run`. CI runs the same suite on two runners with
+`bunx vitest run --shard=1/2` and `bunx vitest run --shard=2/2`.
+
+Run Rust tests with `cargo nextest run --locked --manifest-path src-tauri/Cargo.toml`. The Cargo
+test profile keeps source locations for backtraces and builds less debug information locally and
+in CI. Run doctests with `cargo test --locked --doc --manifest-path src-tauri/Cargo.toml`.
 
 ## Representative Test Coverage Details
 

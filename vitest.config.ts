@@ -1,14 +1,35 @@
 import { configDefaults, defineConfig } from 'vitest/config'
 import { resolve } from 'path'
 
+const nodeTests = [
+  'scripts/__tests__/*.test.ts',
+  'src/lib/__tests__/{db.*,schemas.*,cn,domain-contract,format,log-*,lossless-json,migrations,resource-folders,settings-transfer,shortcut-label,tab-state-key,text-encoding,tokens,tool-state-merge,wiki-link-contract}.test.ts',
+  'src/styles/__tests__/*.test.ts',
+  'src/tools/__tests__/{api-import,api-request-contract,diff-api,hash-*,jwt-verify,notes-task-model,refactoring-toolkit,text-editor-transforms,timestamp-formats,wiki-links}.test.ts',
+  'src/workers/__tests__/*.test.ts',
+]
+
+// Local nested worktrees are separate checkouts; running their tests here mixes results.
+const exclude = [...configDefaults.exclude, '**/.kilo/**']
+
 export default defineConfig({
   test: {
-    // Local nested worktrees are separate checkouts; running their tests here mixes results.
-    exclude: [...configDefaults.exclude, '**/.kilo/**'],
-    environment: 'node', // Use node environment and set up DOM manually
+    exclude,
+    environment: 'node',
+    pool: 'threads',
     globals: true,
-    setupFiles: ['./src/tools/__tests__/test-setup.ts', './src/test-setup.ts'],
     css: false,
+    projects: [
+      { extends: true, test: { name: 'node', include: nodeTests } },
+      {
+        extends: true,
+        test: {
+          name: 'dom',
+          exclude: [...exclude, ...nodeTests],
+          setupFiles: ['./src/test-setup.ts'],
+        },
+      },
+    ],
   },
   resolve: {
     // Order matters: Vite picks the first matching alias, and the bare '@' entry matches

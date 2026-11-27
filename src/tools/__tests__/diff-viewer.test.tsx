@@ -30,6 +30,12 @@ function fillBothSides(left = 'line one\nline two\n', right = 'line one\nline TW
   fireEvent.change(b!, { target: { value: right } })
 }
 
+function fillLargePatch(line: string) {
+  // Appending lines crosses the render limit without comparing two entirely different files.
+  const header = 'header\n'
+  fillBothSides(header, header + `${line}\n`.repeat(2001))
+}
+
 function openOptions() {
   fireEvent.click(screen.getByRole('button', { name: /Options/ }))
 }
@@ -141,10 +147,9 @@ describe('DiffViewer', () => {
 
   it('holds back a diff too large to render until the user asks for it', async () => {
     renderTool(DiffViewer)
-    // Every line differs, so the patch carries both sides in full and passes MAX_RENDERED_DIFF_LINES.
-    // A sparse change in a file this size stays cheap, because the patch is only its hunks.
-    const left = Array.from({ length: 1200 }, (_, i) => `line ${i}`).join('\n')
-    const right = Array.from({ length: 1200 }, (_, i) => `LINE ${i} changed`).join('\n')
+    // Exercise a mixed patch just over the render cap in the default side-by-side layout.
+    const left = Array.from({ length: 1001 }, (_, index) => `original line ${index}`).join('\n')
+    const right = Array.from({ length: 1001 }, (_, index) => `changed line ${index}`).join('\n')
     fillBothSides(left, right)
     fireEvent.click(screen.getByRole('button', { name: /Compare/ }))
 
@@ -165,8 +170,9 @@ describe('DiffViewer', () => {
   // The test carries its own timeout because a CI runner cannot pay it in the 5s default.
   it('asks again when the next diff is also too large', async () => {
     renderTool(DiffViewer)
-    const left = Array.from({ length: 1050 }, (_, i) => `line ${i}`).join('\n')
-    fillBothSides(left, Array.from({ length: 1050 }, (_, i) => `LINE ${i} changed`).join('\n'))
+    openOptions()
+    fireEvent.change(screen.getByLabelText('Layout'), { target: { value: 'inline' } })
+    fillLargePatch('added line')
     fireEvent.click(screen.getByRole('button', { name: /Compare/ }))
 
     await waitFor(() => expect(screen.getByText('Large diff')).toBeInTheDocument())
@@ -175,7 +181,7 @@ describe('DiffViewer', () => {
       expect(screen.getByRole('region', { name: 'Diff result' })).toBeInTheDocument()
     )
 
-    fillBothSides(left, Array.from({ length: 1050 }, (_, i) => `LINE ${i} again`).join('\n'))
+    fillLargePatch('different added line')
     fireEvent.click(screen.getByRole('button', { name: /Compare/ }))
 
     await waitFor(() => expect(screen.getByText('Large diff')).toBeInTheDocument())
