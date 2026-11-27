@@ -49,9 +49,7 @@ fn read_range<F: Read + Seek>(
 
     let mut head = Vec::with_capacity(HEAD_BYTES);
     file.seek(SeekFrom::Start(0))?;
-    file.by_ref()
-        .take(HEAD_BYTES as u64)
-        .read_to_end(&mut head)?;
+    file.by_ref().take(HEAD_BYTES as u64).read_to_end(&mut head)?;
 
     // Read only up to `size`. A writer can append while this runs, and the next read collects
     // those bytes, because it starts at `size`.
@@ -119,13 +117,8 @@ pub fn log_file_read(
     let metadata = file
         .metadata()
         .map_err(|err| format!("Unable to inspect \"{path}\": {err}"))?;
-    let range = read_range(
-        &mut file,
-        metadata.len(),
-        start,
-        max_bytes.min(MAX_READ_BYTES),
-    )
-    .map_err(|err| format!("Unable to read \"{path}\": {err}"))?;
+    let range = read_range(&mut file, metadata.len(), start, max_bytes.min(MAX_READ_BYTES))
+        .map_err(|err| format!("Unable to read \"{path}\": {err}"))?;
     Ok(Response::new(encode(range, file_identity(&metadata))))
 }
 
