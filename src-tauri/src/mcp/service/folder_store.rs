@@ -300,6 +300,123 @@ impl DevdrivrMcpService {
         Ok(folder)
     }
 
+    pub(super) async fn create_folder_in(
+        transaction: &mut Transaction<'_, Sqlite>,
+        kind: &str,
+        name: &str,
+        parent_id: Option<String>,
+        default_language: Option<String>,
+    ) -> Result<ResourceFolderRow, McpError> {
+        let max_sort = sqlx::query_scalar::<_, f64>(
+            "SELECT CAST(COALESCE(MAX(sort_order), 0) AS REAL) FROM resource_folders WHERE kind = $1 AND deleted_at IS NULL AND parent_id IS $2",
+        )
+        .bind(kind)
+        .bind(&parent_id)
+        .fetch_one(&mut **transaction)
+        .await
+        .map_err(db_error)?;
+        let now = now_ms();
+        let folder = ResourceFolderRow {
+            id: Uuid::new_v4().to_string(),
+            name: name.to_string(),
+            parent_id,
+            kind: kind.to_string(),
+            sort_order: max_sort + FOLDER_SORT_STEP,
+            default_language,
+            created_at: now,
+            updated_at: now,
+            deleted_at: None,
+        };
+        Self::save_folder_in(transaction, &folder).await?;
+        Ok(folder)
+    }
+
+    pub(super) async fn resolve_note_folder(
+        &self,
+        transaction: &mut Transaction<'_, Sqlite>,
+        folder_id: Option<String>,
+        path: Option<&str>,
+        create_missing: bool,
+    ) -> Result<(Option<String>, Vec<String>), McpError> {
+        if folder_id.is_some() && path.is_some() {
+            return Err(invalid_argument(
+                "folder",
+                "folder and folderId are mutually exclusive",
+                &["Pass either a slash-separated folder path or its ID"],
+            ));
+        }
+        if let Some(id) = folder_id {
+            let kind = sqlx::query_scalar::<_, String>(
+                "SELECT kind FROM resource_folders WHERE id = $1 AND deleted_at IS NULL",
+            )
+            .bind(&id)
+            .fetch_optional(&mut **transaction)
+            .await
+            .map_err(db_error)?;
+            match kind.as_deref() {
+                Some("notes") => return Ok((Some(id), Vec::new())),
+                None => return Err(not_found("folders", &id)),
+                _ => {
+                    return Err(invalid_argument(
+                        "folderId",
+                        format!("Folder {id} does not belong to notes"),
+                        &["Use a folder ID returned by resource_folders_list for notes"],
+                    ))
+                }
+            }
+        }
+        let Some(path) = path else {
+            return Ok((None, Vec::new()));
+        };
+        let segments: Vec<_> = path.split('/').collect();
+        if segments.iter().any(|segment| segment.trim().is_empty()) {
+            return Err(invalid_argument(
+                "folder",
+                "The folder path has an empty segment",
+                &["Use a path such as Work/Guides without leading, trailing, or repeated slashes"],
+            ));
+        }
+        let mut parent = None;
+        let mut created = Vec::new();
+        for name in segments {
+            let matching = sqlx::query_scalar::<_, String>(
+                "SELECT id FROM resource_folders WHERE kind = 'notes' AND parent_id IS $1 AND name = $2 AND deleted_at IS NULL LIMIT 2",
+            ).bind(&parent).bind(name).fetch_all(&mut **transaction).await.map_err(db_error)?;
+            parent = match matching.as_slice() {
+                [id] => Some(id.clone()),
+                [] if create_missing => {
+                    self.ensure_permission("notes", "create").await?;
+                    let folder =
+                        Self::create_folder_in(transaction, "notes", name, parent, None).await?;
+                    created.push(folder.id.clone());
+                    Some(folder.id)
+                }
+                [] => {
+                    return Err(invalid_argument(
+                        "folder",
+                        format!("Note folder path '{path}' does not exist"),
+                        &["Use an existing folder path or omit the folder filter"],
+                    ))
+                }
+                _ => {
+                    return Err(invalid_argument(
+                        "folder",
+                        format!("Folder '{name}' is ambiguous in path '{path}'"),
+                        &["Use folderId or rename one of the matching sibling folders"],
+                    ))
+                }
+            };
+        }
+        Ok((parent, created))
+    }
+
+    pub(super) fn emit_note_folders_created(&self, ids: Vec<String>) {
+        for id in ids {
+            self.emit_changed("folders", "create", Some(id.clone()));
+            self.emit_changed("notes", "create", Some(id));
+        }
+    }
+
     pub(super) async fn save_folder(
         &self,
         folder: &ResourceFolderRow,

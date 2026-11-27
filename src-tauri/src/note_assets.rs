@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
     fs,
+    io::Read,
     path::{Path, PathBuf},
     sync::Mutex,
 };
@@ -9,7 +10,10 @@ use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
 
 const ASSET_DIRECTORY: &str = "note-assets";
-const MAX_ASSET_BYTES: usize = 10 * 1024 * 1024;
+pub(crate) const MAX_ASSET_BYTES: usize = 10 * 1024 * 1024;
+const EXTENSIONS: [&str; 4] = ["png", "jpg", "gif", "webp"];
+// Stable namespace for MCP asset keys. Changing it would change existing asset URLs.
+const ASSET_KEY_NAMESPACE: Uuid = Uuid::from_u128(0xf6ec624b_49ad_4fa5_8dfc_3709e8054de7);
 const MAX_RESTORE_ASSETS: usize = 500;
 const MAX_RESTORE_BYTES: usize = 100 * 1024 * 1024;
 
@@ -22,10 +26,10 @@ struct ImageFormat {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NoteAsset {
-    id: String,
+    pub(crate) id: String,
     file_name: String,
-    mime_type: String,
-    size: usize,
+    pub(crate) mime_type: String,
+    pub(crate) size: usize,
     path: String,
 }
 
@@ -84,7 +88,7 @@ fn validate_bytes(bytes: &[u8]) -> Result<ImageFormat, String> {
     image_format(bytes).ok_or_else(|| "Only PNG, JPEG, GIF, and WebP images are supported".into())
 }
 
-fn validate_id(id: &str) -> Result<Uuid, String> {
+pub(crate) fn validate_id(id: &str) -> Result<Uuid, String> {
     let parsed = Uuid::parse_str(id).map_err(|_| "Invalid note asset ID".to_string())?;
     if parsed.to_string() != id {
         return Err("Invalid note asset ID".into());
@@ -92,7 +96,7 @@ fn validate_id(id: &str) -> Result<Uuid, String> {
     Ok(parsed)
 }
 
-fn asset_directory(app: &AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn asset_directory(app: &AppHandle) -> Result<PathBuf, String> {
     app.path()
         .app_data_dir()
         .map(|path| path.join(ASSET_DIRECTORY))
@@ -109,7 +113,7 @@ fn path_for(directory: &Path, id: &str, extension: &str) -> Result<PathBuf, Stri
 
 fn find_asset(directory: &Path, id: &str) -> Result<(PathBuf, ImageFormat), String> {
     validate_id(id)?;
-    for extension in ["png", "jpg", "gif", "webp"] {
+    for extension in EXTENSIONS {
         let path = path_for(directory, id, extension)?;
         if path.is_file() {
             let bytes =
@@ -127,7 +131,7 @@ fn find_asset(directory: &Path, id: &str) -> Result<(PathBuf, ImageFormat), Stri
 fn unique_asset_id(directory: &Path) -> Result<String, String> {
     for _ in 0..8 {
         let id = Uuid::new_v4().to_string();
-        if ["png", "jpg", "gif", "webp"]
+        if EXTENSIONS
             .iter()
             .all(|extension| !directory.join(format!("{id}.{extension}")).exists())
         {
@@ -144,7 +148,10 @@ fn write_new_asset(path: &Path, bytes: &[u8]) -> Result<(), String> {
     fs::create_dir_all(parent)
         .map_err(|error| format!("Unable to create the note asset directory: {error}"))?;
     let temporary = parent.join(format!(".{}.tmp", Uuid::new_v4()));
-    fs::write(&temporary, bytes).map_err(|error| format!("Unable to write note asset: {error}"))?;
+    if let Err(error) = fs::write(&temporary, bytes) {
+        let _ = fs::remove_file(&temporary);
+        return Err(format!("Unable to write note asset: {error}"));
+    }
     if let Err(error) = fs::rename(&temporary, path) {
         let _ = fs::remove_file(&temporary);
         return Err(format!("Unable to finalize note asset: {error}"));
@@ -170,14 +177,132 @@ fn to_asset(id: &str, path: PathBuf, format: ImageFormat) -> Result<NoteAsset, S
     })
 }
 
+pub(crate) struct PreparedAsset {
+    pub(crate) id: String,
+    bytes: Vec<u8>,
+    format: ImageFormat,
+}
+
+impl PreparedAsset {
+    pub(crate) fn new(directory: &Path, bytes: Vec<u8>, key: Option<&str>) -> Result<Self, String> {
+        let format = validate_bytes(&bytes)?;
+        let id = match key {
+            Some(key) => Uuid::new_v5(&ASSET_KEY_NAMESPACE, key.as_bytes()).to_string(),
+            None => unique_asset_id(directory)?,
+        };
+        Ok(Self { id, bytes, format })
+    }
+}
+
+pub(crate) fn read_local_image(path: &Path) -> Result<Vec<u8>, String> {
+    if !path.is_absolute() || !path.is_file() {
+        return Err("Path must be an absolute path to an existing local image file".into());
+    }
+    let mut bytes = Vec::new();
+    fs::File::open(path)
+        .and_then(|file| {
+            file.take(MAX_ASSET_BYTES as u64 + 1)
+                .read_to_end(&mut bytes)
+        })
+        .map_err(|error| format!("Unable to read image: {error}"))?;
+    Ok(bytes)
+}
+
+/// Keep the original files until the caller has committed its note transaction.
+pub(crate) struct AssetWrites {
+    directory: PathBuf,
+    backups: HashMap<String, Vec<(PathBuf, PathBuf)>>,
+    committed: bool,
+}
+
+impl AssetWrites {
+    pub(crate) fn new(directory: PathBuf) -> Self {
+        Self {
+            directory,
+            backups: HashMap::new(),
+            committed: false,
+        }
+    }
+
+    pub(crate) fn write(&mut self, asset: PreparedAsset) -> Result<(NoteAsset, bool), String> {
+        let path = path_for(&self.directory, &asset.id, asset.format.extension)?;
+        let existing = EXTENSIONS
+            .iter()
+            .map(|extension| self.directory.join(format!("{}.{extension}", asset.id)))
+            .filter(|path| path.is_file())
+            .collect::<Vec<_>>();
+        let replaced = !existing.is_empty();
+        if existing.as_slice() == [path.clone()]
+            && fs::read(&path).is_ok_and(|bytes| bytes == asset.bytes)
+        {
+            return Ok((to_asset(&asset.id, path, asset.format)?, replaced));
+        }
+        if !self.backups.contains_key(&asset.id) {
+            let mut backups = Vec::new();
+            for original in &existing {
+                let backup = self.directory.join(format!(".{}.bak", Uuid::new_v4()));
+                if let Err(error) = fs::copy(original, &backup) {
+                    let _ = fs::remove_file(&backup);
+                    for (_, previous) in backups {
+                        let _ = fs::remove_file(previous);
+                    }
+                    return Err(format!("Unable to back up previous note asset: {error}"));
+                }
+                backups.push((original.clone(), backup));
+            }
+            self.backups.insert(asset.id.clone(), backups);
+        }
+        write_new_asset(&path, &asset.bytes)?;
+        for other in existing.iter().filter(|other| **other != path) {
+            fs::remove_file(other)
+                .map_err(|error| format!("Unable to remove previous note asset format: {error}"))?;
+        }
+        Ok((to_asset(&asset.id, path, asset.format)?, replaced))
+    }
+
+    pub(crate) fn commit(mut self) {
+        self.committed = true;
+    }
+}
+
+impl Drop for AssetWrites {
+    fn drop(&mut self) {
+        for (id, backups) in &self.backups {
+            if !self.committed {
+                for extension in EXTENSIONS {
+                    let path = self.directory.join(format!("{id}.{extension}"));
+                    if path.is_file() && !backups.iter().any(|(original, _)| *original == path) {
+                        if let Err(error) = fs::remove_file(&path) {
+                            eprintln!("Unable to roll back note asset {}: {error}", path.display());
+                        }
+                    }
+                }
+            }
+            for (original, backup) in backups {
+                let result = if self.committed {
+                    fs::remove_file(backup)
+                } else {
+                    fs::rename(backup, original)
+                };
+                if let Err(error) = result {
+                    eprintln!(
+                        "Unable to finalize note asset backup {}: {error}",
+                        backup.display()
+                    );
+                }
+            }
+        }
+    }
+}
+
 #[tauri::command]
 pub fn note_asset_import(app: AppHandle, bytes: Vec<u8>) -> Result<NoteAsset, String> {
-    let format = validate_bytes(&bytes)?;
     let directory = asset_directory(&app)?;
-    let id = unique_asset_id(&directory)?;
-    let path = path_for(&directory, &id, format.extension)?;
-    write_new_asset(&path, &bytes)?;
-    to_asset(&id, path, format)
+    let prepared = PreparedAsset::new(&directory, bytes, None)?;
+    let mut writes = AssetWrites::new(directory);
+    let (asset, _) = writes.write(prepared)?;
+    writes.commit();
+    Ok(asset)
 }
 
 #[tauri::command]
@@ -196,12 +321,18 @@ pub fn note_assets_find_orphans(
         .iter()
         .map(|id| validate_id(id).map(|_| id.as_str()))
         .collect::<Result<HashSet<_>, _>>()?;
-    let directory = asset_directory(&app)?;
+    list_assets(&asset_directory(&app)?, &referenced)
+}
+
+pub(crate) fn list_assets(
+    directory: &Path,
+    excluded: &HashSet<&str>,
+) -> Result<Vec<NoteAsset>, String> {
     if !directory.exists() {
         return Ok(Vec::new());
     }
-    let mut orphans = Vec::new();
-    for entry in fs::read_dir(&directory)
+    let mut assets = Vec::new();
+    for entry in fs::read_dir(directory)
         .map_err(|error| format!("Unable to inspect note assets: {error}"))?
     {
         let path = entry
@@ -214,25 +345,32 @@ pub fn note_assets_find_orphans(
         else {
             continue;
         };
-        if referenced.contains(stem.as_str()) || validate_id(&stem).is_err() {
+        if excluded.contains(stem.as_str()) || validate_id(&stem).is_err() {
             continue;
         }
         let extension = path
             .extension()
             .and_then(|extension| extension.to_str())
             .unwrap_or("");
-        if !matches!(extension, "png" | "jpg" | "gif" | "webp") {
+        if !EXTENSIONS.contains(&extension) || !path.is_file() {
             continue;
         }
-        let bytes =
-            fs::read(&path).map_err(|error| format!("Unable to read note asset: {error}"))?;
-        let format = validate_bytes(&bytes)?;
+        let mut signature = Vec::with_capacity(12);
+        fs::File::open(&path)
+            .and_then(|file| file.take(12).read_to_end(&mut signature))
+            .map_err(|error| format!("Unable to read note asset: {error}"))?;
+        let format = validate_bytes(&signature)?;
         if format.extension == extension {
-            orphans.push(to_asset(&stem, path, format)?);
+            let asset = to_asset(&stem, path, format)?;
+            if asset.size > MAX_ASSET_BYTES {
+                return Err("Image exceeds the 10 MiB attachment limit".into());
+            }
+            assets.push(asset);
         }
     }
-    orphans.sort_by(|left, right| left.id.cmp(&right.id));
-    Ok(orphans)
+    assets.sort_by(|left, right| left.id.cmp(&right.id));
+    assets.dedup_by(|left, right| left.id == right.id);
+    Ok(assets)
 }
 
 #[tauri::command]
@@ -254,14 +392,20 @@ pub fn note_assets_delete_orphans(
     }
     let mut deleted = 0;
     for id in ids {
-        match find_asset(&directory, &id) {
-            Ok((path, _)) => {
-                fs::remove_file(path)
-                    .map_err(|error| format!("Unable to delete unused note asset: {error}"))?;
-                deleted += 1;
-            }
-            Err(error) if error == "Note asset is missing" => {}
-            Err(error) => return Err(error),
+        deleted += usize::from(delete_asset(&directory, &id)?);
+    }
+    Ok(deleted)
+}
+
+pub(crate) fn delete_asset(directory: &Path, id: &str) -> Result<bool, String> {
+    validate_id(id)?;
+    let mut deleted = false;
+    for extension in EXTENSIONS {
+        let path = path_for(directory, id, extension)?;
+        match fs::remove_file(path) {
+            Ok(()) => deleted = true,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(format!("Unable to delete unused note asset: {error}")),
         }
     }
     Ok(deleted)

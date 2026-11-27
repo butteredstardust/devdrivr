@@ -50,7 +50,8 @@ axum = "0.8"
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "json"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net"] }
 tokio-util = "0.7"
-uuid = { version = "1", features = ["v4", "serde"] }
+uuid = { version = "1", features = ["v4", "v5", "serde"] }
+pulldown-cmark = { version = "0.13", default-features = false }
 # AGPL-3.0-only. Optional, and gated behind the `remote-ui` feature above — never in a shipped
 # binary, which is why it is absent from src/lib/acknowledgments.ts.
 tauri-remote-ui = { version = "1.1", optional = true }

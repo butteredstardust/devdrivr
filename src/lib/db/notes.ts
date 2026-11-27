@@ -27,6 +27,7 @@ type NoteRow = {
   task_status: string | null
   task_priority: string | null
   task_due_date: string | null
+  external_key: string | null
 }
 
 function rowToNote(row: NoteRow): Note | null {
@@ -201,7 +202,10 @@ export async function restoreNotesFromBackup(
       ]),
       ...notes.flatMap((note) => [
         noteSaveStatement(note),
-        { sql: 'UPDATE notes SET deleted_at = NULL WHERE id = $1', params: [note.id] },
+        {
+          sql: 'UPDATE notes SET deleted_at = NULL, external_key = COALESCE($2, external_key) WHERE id = $1',
+          params: [note.id, note.externalKey ?? null],
+        },
         ...noteLinkStatements(note),
       ]),
     ],

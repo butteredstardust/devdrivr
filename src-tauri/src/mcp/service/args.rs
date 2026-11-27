@@ -14,6 +14,76 @@ pub(super) struct ListArgs {
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct NoteListArgs {
+    pub(super) query: Option<String>,
+    pub(super) limit: Option<i64>,
+    pub(super) cursor: Option<String>,
+    /// Include full Markdown. Defaults to false.
+    pub(super) include_content: Option<bool>,
+    pub(super) folder_id: Option<String>,
+    pub(super) folder: Option<String>,
+    pub(super) tag: Option<String>,
+    pub(super) external_key: Option<String>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(super) struct AssetInput {
+    /// Standard base64 image bytes. Supply exactly one of data and path.
+    pub(super) data: Option<String>,
+    /// Absolute path to an image on the computer running devdrivr.
+    pub(super) path: Option<String>,
+    /// Stable key up to 512 characters. A repeated key replaces the asset.
+    pub(super) key: Option<String>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(super) struct AssetUploadArgs {
+    #[serde(flatten)]
+    pub(super) asset: AssetInput,
+    /// Optional source filename. Storage uses the UUID and detected image extension.
+    #[serde(rename = "filename")]
+    pub(super) _filename: Option<String>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct AssetListArgs {
+    pub(super) limit: Option<i64>,
+    pub(super) cursor: Option<String>,
+    pub(super) unreferenced_only: Option<bool>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(super) struct NoteAssetInput {
+    #[serde(rename = "ref")]
+    pub(super) reference: String,
+    #[serde(flatten)]
+    pub(super) asset: AssetInput,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct NoteUpsertItem {
+    pub(super) external_key: String,
+    pub(super) title: Option<String>,
+    pub(super) content: Option<String>,
+    pub(super) color: Option<String>,
+    pub(super) pinned: Option<bool>,
+    pub(super) tags: Option<Vec<String>>,
+    pub(super) folder_id: Option<String>,
+    pub(super) folder: Option<String>,
+    pub(super) assets: Option<Vec<NoteAssetInput>>,
+    pub(super) expected_updated_at: Option<i64>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub(super) struct NoteUpsertArgs {
+    #[schemars(with = "Vec<NoteUpsertItem>", length(min = 1, max = 100))]
+    pub(super) items: Vec<Value>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub(super) struct IdArgs {
     pub(super) id: String,
 }
@@ -93,6 +163,8 @@ pub(super) struct NoteCreateArgs {
     pub(super) pinned: Option<bool>,
     pub(super) tags: Option<Vec<String>>,
     pub(super) folder_id: Option<String>,
+    pub(super) folder: Option<String>,
+    pub(super) external_key: Option<String>,
     pub(super) task_status: Option<String>,
     pub(super) task_priority: Option<String>,
     pub(super) task_due_date: Option<String>,
@@ -108,6 +180,8 @@ pub(super) struct NoteUpdateArgs {
     pub(super) pinned: Option<bool>,
     pub(super) tags: Option<Vec<String>>,
     pub(super) folder_id: Option<String>,
+    pub(super) folder: Option<String>,
+    pub(super) external_key: Option<String>,
     pub(super) task_status: Option<String>,
     pub(super) task_priority: Option<String>,
     pub(super) task_due_date: Option<String>,

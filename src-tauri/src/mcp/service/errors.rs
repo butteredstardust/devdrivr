@@ -242,6 +242,30 @@ pub(super) fn invalid_api_auth(message: impl Into<String>) -> McpError {
     )
 }
 
+pub(super) fn note_key_write_error(err: sqlx::Error, key: Option<&str>) -> McpError {
+    if err.as_database_error().is_some_and(|error| {
+        error.is_unique_violation() && error.message().contains("notes.external_key")
+    }) {
+        let key = key.map_or_else(String::new, |key| format!(" '{key}'"));
+        McpError::invalid_request(
+            format!("External key{key} is already held by a live note"),
+            Some(error_data(
+                "CONFLICT",
+                Some("notes"),
+                None,
+                None,
+                Some("externalKey"),
+                &[
+                    "Use notes_list with externalKey to find the live note",
+                    "Clear or change the live note's externalKey before retrying",
+                ],
+            )),
+        )
+    } else {
+        db_error(err)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::MAX_MULTI_GET;

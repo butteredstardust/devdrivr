@@ -108,6 +108,13 @@ describe('managed note assets', () => {
     )
   })
 
+  it('preserves the title when resolving a managed image', async () => {
+    core.invoke.mockResolvedValue({ path: '/data/diagram.png' })
+    await expect(
+      resolveNoteAssetMarkdown(`![diagram [detail]](<devdrivr-asset:${ID}> "Overview")`)
+    ).resolves.toBe('![diagram [detail]](asset://localhost/data/diagram.png "Overview")')
+  })
+
   it('exports referenced assets once and restores them before returning notes', async () => {
     const asset = {
       id: ID,
@@ -158,6 +165,7 @@ describe('managed note assets', () => {
     const source = {
       ...note('[[note:note-target|Target]]'),
       id: 'note-source',
+      externalKey: 'guides/design',
       folderId: childFolder.id,
     }
     core.invoke.mockResolvedValueOnce([])
@@ -172,6 +180,7 @@ describe('managed note assets', () => {
       expect.arrayContaining([
         expect.objectContaining({
           id: 'note-source',
+          externalKey: 'guides/design',
           folderId: childFolder.id,
           content: '[[note:note-target|Target]]',
         }),

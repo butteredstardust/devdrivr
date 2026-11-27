@@ -17,7 +17,7 @@ The MCP server exposes devdrivr resources as tools:
 
 | Resource         | What It Contains                                 | MCP Capabilities                             |
 | ---------------- | ------------------------------------------------ | -------------------------------------------- |
-| Notes            | User notes, content, color, pinned state, tags   | List, get, create, update, delete            |
+| Notes            | User notes, content, color, pinned state, tags   | List, get, create, update, upsert, delete    |
 | Snippets         | Saved code/text snippets, language, folder, tags | List, get, create, update, delete            |
 | Prompt templates | Built-in and user prompt templates               | List, get, create, update, delete user-owned |
 | API requests     | Saved API client requests and collections        | List, get, create, update, delete requests   |
@@ -161,8 +161,10 @@ introspect()
 | Search/list default results | 50           |
 | Search/list max results     | 500          |
 | `multi_get` max IDs         | 100          |
-| Request body                | 8 MiB        |
-| Single text field           | 1 MiB        |
+| Request body                | 64 MiB       |
+| Single ordinary text field  | 1 MiB        |
+| Note image (decoded)        | 10 MiB       |
+| Note upsert batch           | 100 items    |
 | Items in one list field     | 1000         |
 | Tool call duration          | 30 s         |
 | MCP host                    | `127.0.0.1`  |
@@ -179,7 +181,43 @@ The expectation is part of the write itself, not a check that runs before it. A 
 the desktop app between the read and the write therefore still refuses the write, rather than
 losing the newer edit.
 
+## Sync a folder of guides
+
+Assign each source guide a stable `externalKey` and send its Markdown and screenshot inputs in a single `notes_upsert` batch.
+
+```json
+{
+  "items": [
+    {
+      "externalKey": "training/getting-started",
+      "title": "Getting started",
+      "folder": "Work/Guides",
+      "tags": ["training"],
+      "content": "# Getting started\n\n![Overview](screens/overview.png \"Overview\")\n\n*The workspace overview.*",
+      "assets": [{ "ref": "screens/overview.png", "path": "C:/Guides/screens/overview.png" }]
+    }
+  ]
+}
+```
+
+For each asset, provide either standard base64 `data` or an absolute `path` on the machine running devdrivr. Use `data` when the screenshot is on the client's machine only. The asset's `ref` must exactly match an inline Markdown image destination in the note. Upsert preserves the image's alt text and optional title while replacing every matching destination with a `devdrivr-asset:<uuid>` URL. Reuse the same `externalKey` and refs on each run. Each item returns `created`, `updated`, `unchanged`, or `error`. A failing item leaves the other items eligible to commit. Supply `expectedUpdatedAt` from a previous read to protect an update from concurrent edits.
+
+Use `notes_list({ "externalKey": "training/getting-started" })` to find the live note and its timestamp. External keys are unique among live notes and capped at 512 characters. Pass an empty `externalKey` to `notes_update` to clear it. Restoring a trashed note fails with a conflict if a live note now holds its key.
+
+Pass either `folderId` or a slash-separated `folder` path to note writes and lists. A write can create missing segments with `notes.create`. A list filter requires an existing path. If two live sibling folders share a name in the path, use `folderId` to disambiguate.
+
+Notes render CommonMark with GFM tables, strikethrough, autolinks, and task lists. Raw HTML is discarded and the rendered output is sanitized. To caption a screenshot, put an italic line below the image. Content is limited to 1 MiB, images to 10 MiB each after decoding, and upsert batches to 100 items within the 64 MiB HTTP request limit. Other text fields keep the 1 MiB limit.
+
+| Tool                 | Arguments and behavior                                                                                                                                                                                            | Permission                                                    |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `notes_upsert`       | `items` array with per-item results                                                                                                                                                                               | `notes.create` for creates, `notes.update` for existing notes |
+| `note_assets_upload` | `data` or `path`, optional `key` and `filename`. Returns `assetId`, `url`, `mimeType`, `size`, and `replaced`. Reuse a key of up to 512 characters to replace the same asset, even when its image format changes. | `notes.create` or `notes.update`                              |
+| `note_assets_list`   | Optional `limit`, `cursor`, and `unreferencedOnly`. Returns a page of assets with `id`, `url`, `mimeType`, `size`, and `referencedBy` note IDs, including Trash.                                                  | `notes.read`                                                  |
+| `note_assets_delete` | `id` of the asset. If any note or trashed note references it, the error includes the note IDs.                                                                                                                    | `notes.delete`                                                |
+
 ## Notes on list responses
+
+**Behavior change.** `notes_list` omits `content` by default and returns `contentLength` in UTF-8 bytes. Set `includeContent: true` or call `notes_get` or `multi_get` for full content. Optional `folderId`, `folder`, `tag`, and `externalKey` filters can be combined with `query` and pagination.
 
 A list response carries `total`, `limit`, `hasMore` and `nextCursor` beside the records:
 

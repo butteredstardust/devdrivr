@@ -405,6 +405,17 @@ pub(super) fn normalize_help_topic(
         .ok_or_else(|| unknown_help_topic(&topic))
 }
 
+pub(super) fn validate_sync_key(argument: &str, value: &str) -> Result<(), McpError> {
+    if value.chars().count() > 512 {
+        return Err(invalid_argument(
+            argument,
+            format!("{argument} exceeds 512 characters"),
+            &["Supply a key of at most 512 characters"],
+        ));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::parse_json;

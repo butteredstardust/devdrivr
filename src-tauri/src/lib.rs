@@ -145,6 +145,12 @@ pub fn run() {
             sql: include_str!("../migrations/019_prompt_template_category_repair.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 20,
+            description: "add external keys to notes",
+            sql: include_str!("../migrations/020_note_external_key.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
 
     let builder = tauri::Builder::default();

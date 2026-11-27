@@ -154,6 +154,19 @@ describe('db.ts with SQLite', () => {
     await expect(loadTrashedNotes()).resolves.toEqual([])
   })
 
+  it('restores a backup external key and preserves it during an ordinary note save', async () => {
+    const { loadNote, restoreNotesFromBackup, saveNote } = await import('@/lib/db')
+    const original = note('guide', { externalKey: 'guides/start' })
+    await restoreNotesFromBackup([], [original])
+    await expect(loadNote(original.id)).resolves.toMatchObject({ externalKey: 'guides/start' })
+
+    await saveNote(note('guide', { content: 'Edited in the app' }))
+    await expect(loadNote(original.id)).resolves.toMatchObject({
+      externalKey: 'guides/start',
+      content: 'Edited in the app',
+    })
+  })
+
   it('saves a note when its compare-and-set baseline still matches', async () => {
     const { loadNotes, saveNote, saveNoteIfUnchanged } = await import('@/lib/db')
     const original = note('cas-match')

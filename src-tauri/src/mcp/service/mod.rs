@@ -23,7 +23,9 @@ mod errors;
 mod fetch;
 mod folder_store;
 mod folders;
+mod note_assets;
 mod notes;
+mod notes_upsert;
 mod paging;
 mod prompt_templates;
 mod request_fields;
@@ -47,7 +49,7 @@ type McpResult = std::result::Result<CallToolResult, McpError>;
 const DEFAULT_RESULT_LIMIT: i64 = 50;
 const MAX_RESULT_LIMIT: i64 = 500;
 const MAX_MULTI_GET: usize = 100;
-/// Longest string accepted in any tool argument. A note or a request body fits comfortably.
+/// Longest ordinary text field. Asset data is capped separately before base64 decoding.
 const MAX_TEXT_FIELD_BYTES: usize = 1024 * 1024;
 /// Longest array accepted in any tool argument, such as tags, headers or variables.
 const MAX_ARRAY_ITEMS: usize = 1000;
@@ -75,6 +77,8 @@ pub struct DevdrivrMcpService {
     /// for the Wry handle the app runs on, so tests construct the service without one and the
     /// change event is dropped instead of emitted.
     app: Option<AppHandle>,
+    #[cfg(test)]
+    test_asset_directory: Option<std::path::PathBuf>,
     tool_router: ToolRouter<Self>,
 }
 
@@ -149,7 +153,11 @@ fn resource_display_name(resource: &str) -> &str {
 /// with the field that broke the budget instead of a bare transport error.
 ///
 /// Runs before the arguments are deserialised, so it covers every tool at once.
-fn check_argument_budget(value: &Value, depth: usize) -> std::result::Result<(), McpError> {
+fn check_argument_budget(
+    value: &Value,
+    depth: usize,
+    asset_path: Option<&[&str]>,
+) -> std::result::Result<(), McpError> {
     if depth > MAX_ARGUMENT_DEPTH {
         return Err(resource_limit(
             format!("Arguments nest deeper than {MAX_ARGUMENT_DEPTH} levels"),
@@ -157,16 +165,18 @@ fn check_argument_budget(value: &Value, depth: usize) -> std::result::Result<(),
         ));
     }
     match value {
-        Value::String(text) if text.len() > MAX_TEXT_FIELD_BYTES => Err(resource_limit(
-            format!(
-                "A text field is {} bytes; maximum is {MAX_TEXT_FIELD_BYTES}",
-                text.len()
-            ),
-            &[
-                "Split the content across several records",
-                "Store large payloads outside devdrivr and keep a reference",
-            ],
-        )),
+        Value::String(text) if asset_path != Some(&[]) && text.len() > MAX_TEXT_FIELD_BYTES => {
+            Err(resource_limit(
+                format!(
+                    "A text field is {} bytes; maximum is {MAX_TEXT_FIELD_BYTES}",
+                    text.len()
+                ),
+                &[
+                    "Split the content across several records",
+                    "Store large payloads outside devdrivr and keep a reference",
+                ],
+            ))
+        }
         Value::Array(items) if items.len() > MAX_ARRAY_ITEMS => Err(resource_limit(
             format!(
                 "A list field has {} items; maximum is {MAX_ARRAY_ITEMS}",
@@ -176,7 +186,7 @@ fn check_argument_budget(value: &Value, depth: usize) -> std::result::Result<(),
         )),
         Value::Array(items) => items
             .iter()
-            .try_for_each(|item| check_argument_budget(item, depth + 1)),
+            .try_for_each(|item| check_argument_budget(item, depth + 1, asset_path)),
         Value::Object(entries) if entries.len() > MAX_ARRAY_ITEMS => Err(resource_limit(
             format!(
                 "An object field has {} keys; maximum is {MAX_ARRAY_ITEMS}",
@@ -184,9 +194,13 @@ fn check_argument_budget(value: &Value, depth: usize) -> std::result::Result<(),
             ),
             &["Send fewer keys per call"],
         )),
-        Value::Object(entries) => entries
-            .values()
-            .try_for_each(|item| check_argument_budget(item, depth + 1)),
+        Value::Object(entries) => entries.iter().try_for_each(|(key, item)| {
+            let nested = asset_path.and_then(|path| {
+                let (first, rest) = path.split_first()?;
+                (*first == key).then_some(rest)
+            });
+            check_argument_budget(item, depth + 1, nested)
+        }),
         _ => Ok(()),
     }
 }
@@ -330,6 +344,8 @@ impl DevdrivrMcpService {
     fn tool_router() -> ToolRouter<Self> {
         Self::discovery_router()
             + Self::notes_router()
+            + Self::notes_upsert_router()
+            + Self::note_assets_router()
             + Self::snippets_router()
             + Self::prompt_templates_router()
             + Self::folders_router()
@@ -342,6 +358,8 @@ impl DevdrivrMcpService {
             pool,
             settings,
             app: Some(app),
+            #[cfg(test)]
+            test_asset_directory: None,
             tool_router: Self::tool_router(),
         }
     }
@@ -353,6 +371,8 @@ impl DevdrivrMcpService {
             pool,
             settings,
             app: None,
+            #[cfg(test)]
+            test_asset_directory: None,
             tool_router: Self::tool_router(),
         }
     }
@@ -508,8 +528,13 @@ impl ServerHandler for DevdrivrMcpService {
     ) -> std::result::Result<CallToolResult, McpError> {
         let name = request.name.to_string();
         if let Some(arguments) = &request.arguments {
-            for value in arguments.values() {
-                check_argument_budget(value, 1)?;
+            for (key, value) in arguments {
+                match (name.as_str(), key.as_str()) {
+                    // The upsert handler checks each item's budget and reports errors by item.
+                    ("notes_upsert", "items") => {}
+                    ("note_assets_upload", "data") => check_argument_budget(value, 1, Some(&[]))?,
+                    _ => check_argument_budget(value, 1, None)?,
+                }
             }
         }
         let call = rmcp::handler::server::tool::ToolCallContext::new(self, request, context);

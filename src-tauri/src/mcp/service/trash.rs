@@ -59,7 +59,13 @@ impl DevdrivrMcpService {
         .bind(now)
         .execute(&mut *transaction)
         .await
-        .map_err(db_error)?;
+        .map_err(|error| {
+            if resource_type == ResourceType::Notes {
+                note_key_write_error(error, None)
+            } else {
+                db_error(error)
+            }
+        })?;
         if result.rows_affected() == 0 {
             return Err(not_found(resource_type.key(), &args.id));
         }

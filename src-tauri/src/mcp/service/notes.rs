@@ -2,22 +2,59 @@ use super::*;
 
 #[tool_router(router = notes_router, vis = "pub(super)")]
 impl DevdrivrMcpService {
-    #[tool(description = "List devdrivr notes. Returns compact JSON note records.", output_schema = list_page_schema("notes"))]
-    pub(super) async fn notes_list(&self, Parameters(args): Parameters<ListArgs>) -> McpResult {
+    #[tool(description = "List devdrivr notes with optional folder, tag, external key and query filters. Behavior change: content is omitted by default. Pass includeContent: true or use notes_get or multi_get for full content.", output_schema = list_page_schema("notes"))]
+    pub(super) async fn notes_list(&self, Parameters(args): Parameters<NoteListArgs>) -> McpResult {
         self.ensure_permission("notes", "read").await?;
         let page = PageRequest::parse(args.limit, args.cursor.as_deref())?;
-        let (total, rows) = self
-            .page_rows::<NoteRow>(
-                resource_table(ResourceType::Notes),
-                &resource_filter(ResourceType::Notes),
-                resource_order(ResourceType::Notes),
-                args.query.as_deref(),
-                page,
+        if let Some(key) = &args.external_key {
+            validate_sync_key("externalKey", key)?;
+        }
+        let mut transaction = self.pool.begin().await.map_err(db_error)?;
+        let (folder, _) = self
+            .resolve_note_folder(
+                &mut transaction,
+                args.folder_id,
+                args.folder.as_deref(),
+                false,
             )
             .await?;
+        let filter = format!(
+            "{} AND ($2 IS NULL OR folder_id = $2) AND ($3 IS NULL OR external_key = $3) AND ($4 IS NULL OR EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(tags) THEN tags ELSE '[]' END) WHERE type = 'text' AND value = $4))",
+            resource_filter(ResourceType::Notes),
+        );
+        let pattern = like_pattern(args.query.as_deref());
+        let total =
+            sqlx::query_scalar::<_, i64>(&format!("SELECT COUNT(*) FROM notes WHERE {filter}"))
+                .bind(&pattern)
+                .bind(&folder)
+                .bind(&args.external_key)
+                .bind(&args.tag)
+                .fetch_one(&mut *transaction)
+                .await
+                .map_err(db_error)?;
+        let include_content = args.include_content.unwrap_or(false);
+        let rows = sqlx::query_as::<_, NoteRow>(&format!(
+            "SELECT id, title, CASE WHEN $5 THEN content ELSE '' END AS content, length(CAST(content AS BLOB)) AS content_length, color, pinned, popped_out, window_x, window_y, window_width, window_height, created_at, updated_at, tags, folder_id, deleted_at, task_status, task_priority, task_due_date, external_key FROM notes WHERE {filter} ORDER BY {} LIMIT $6 OFFSET $7",
+            resource_order(ResourceType::Notes),
+        ))
+        .bind(pattern).bind(folder).bind(args.external_key).bind(args.tag).bind(include_content)
+        .bind(page.probe_limit()).bind(page.offset())
+        .fetch_all(&mut *transaction).await.map_err(db_error)?;
+        transaction.commit().await.map_err(db_error)?;
         let mut values = Vec::with_capacity(rows.len());
         for row in rows {
-            values.push(self.note_value(row).await?);
+            if include_content {
+                values.push(self.note_value(row).await?);
+            } else {
+                let folder_path = self.folder_path(row.folder_id.as_deref()).await?;
+                values.push(json!({
+                    "id": row.id, "title": row.title, "color": row.color, "pinned": row.pinned == 1,
+                    "folderId": row.folder_id, "folderPath": folder_path,
+                    "tags": parse_json(row.tags.as_deref().unwrap_or("[]"), json!([])),
+                    "externalKey": row.external_key, "createdAt": row.created_at,
+                    "updatedAt": row.updated_at, "contentLength": row.content_length,
+                }));
+            }
         }
         page_payload("notes", values, page, total)
     }
@@ -36,7 +73,7 @@ impl DevdrivrMcpService {
         to_json_text(self.note_value(row).await?)
     }
 
-    #[tool(description = "Create a devdrivr note.", output_schema = mutation_schema())]
+    #[tool(description = "Create a devdrivr note by folderId or slash-separated folder path with an optional externalKey. Notes render CommonMark with GFM tables, strikethrough, autolinks and task lists. Raw HTML is discarded and rendered output is sanitized. Use italic text below an image for captions. Use devdrivr-asset:<uuid> for managed images. Limits: 1 MiB Markdown content, 10 MiB per image and 100 items per upsert batch.", output_schema = mutation_schema())]
     pub(super) async fn notes_create(
         &self,
         Parameters(args): Parameters<NoteCreateArgs>,
@@ -52,7 +89,9 @@ impl DevdrivrMcpService {
             .map_or_else(|| Ok("yellow".to_string()), validate_note_color)?;
         let pinned = args.pinned.unwrap_or(false);
         let tags = string_vec_to_db_json(args.tags);
-        let folder_id = args.folder_id.unwrap_or_else(|| "notes-inbox".to_string());
+        if let Some(key) = &args.external_key {
+            validate_sync_key("externalKey", key)?;
+        }
         let task_priority = args
             .task_priority
             .as_deref()
@@ -71,10 +110,22 @@ impl DevdrivrMcpService {
             .or_else(|| {
                 (task_priority.is_some() || task_due_date.is_some()).then(|| "todo".to_string())
             });
-        self.require_folder_kind(&folder_id, "notes").await?;
-        let mut transaction = self.pool.begin().await.map_err(db_error)?;
+        let mut transaction = self
+            .pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(db_error)?;
+        let (folder_id, created_folders) = self
+            .resolve_note_folder(
+                &mut transaction,
+                args.folder_id,
+                args.folder.as_deref(),
+                true,
+            )
+            .await?;
+        let folder_id = folder_id.as_deref().unwrap_or("notes-inbox");
         sqlx::query(
-            "INSERT INTO notes (id, title, content, color, pinned, popped_out, created_at, updated_at, tags, folder_id, task_status, task_priority, task_due_date) VALUES ($1, $2, $3, $4, $5, 0, $6, $7, $8, $9, $10, $11, $12)",
+            "INSERT INTO notes (id, title, content, color, pinned, popped_out, created_at, updated_at, tags, folder_id, task_status, task_priority, task_due_date, external_key) VALUES ($1, $2, $3, $4, $5, 0, $6, $7, $8, $9, $10, $11, $12, $13)",
         )
         .bind(&id)
         .bind(title)
@@ -88,27 +139,34 @@ impl DevdrivrMcpService {
         .bind(task_status)
         .bind(task_priority)
         .bind(task_due_date)
+        .bind(&args.external_key)
         .execute(&mut *transaction)
         .await
-        .map_err(db_error)?;
+        .map_err(|error| note_key_write_error(error, args.external_key.as_deref()))?;
         Self::replace_note_links(&mut transaction, &id, &content).await?;
         transaction.commit().await.map_err(db_error)?;
+        self.emit_note_folders_created(created_folders);
         self.emit_changed("notes", "create", Some(id.clone()));
         self.mutation_result(ResourceType::Notes, "create", &id)
             .await
     }
 
-    #[tool(description = "Update a devdrivr note by ID.", output_schema = mutation_schema())]
+    #[tool(description = "Update a devdrivr note by ID. An empty externalKey clears it. Notes render CommonMark with GFM tables, strikethrough, autolinks and task lists. Raw HTML is discarded and rendered output is sanitized. Use italic text below an image for captions. Use devdrivr-asset:<uuid> for managed images. Limits: 1 MiB Markdown content, 10 MiB per image and 100 items per upsert batch.", output_schema = mutation_schema())]
     pub(super) async fn notes_update(
         &self,
         Parameters(args): Parameters<NoteUpdateArgs>,
     ) -> McpResult {
         self.ensure_permission("notes", "update").await?;
+        let mut transaction = self
+            .pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(db_error)?;
         let current = sqlx::query_as::<_, NoteRow>(
             "SELECT * FROM notes WHERE id = $1 AND deleted_at IS NULL",
         )
         .bind(&args.id)
-        .fetch_optional(&self.pool)
+        .fetch_optional(&mut *transaction)
         .await
         .map_err(db_error)?
         .ok_or_else(|| not_found("notes", &args.id))?;
@@ -129,11 +187,14 @@ impl DevdrivrMcpService {
             .tags
             .map(|tags| serde_json::to_string(&tags).unwrap_or_else(|_| "[]".to_string()))
             .unwrap_or_else(|| current.tags.unwrap_or_else(|| "[]".to_string()));
-        let folder_id = args.folder_id.unwrap_or_else(|| {
-            current
-                .folder_id
-                .unwrap_or_else(|| "notes-inbox".to_string())
-        });
+        let external_key = match args.external_key {
+            Some(key) if key.is_empty() => None,
+            Some(key) => {
+                validate_sync_key("externalKey", &key)?;
+                Some(key)
+            }
+            None => current.external_key,
+        };
         let supplied_task_status = args
             .task_status
             .as_deref()
@@ -178,11 +239,18 @@ impl DevdrivrMcpService {
                 (task_priority.is_some() || task_due_date.is_some()).then(|| "todo".to_string())
             })
         };
-        self.require_folder_kind(&folder_id, "notes").await?;
+        let (folder_id, created_folders) = self
+            .resolve_note_folder(
+                &mut transaction,
+                args.folder_id,
+                args.folder.as_deref(),
+                true,
+            )
+            .await?;
+        let folder_id = folder_id.or(current.folder_id);
         let updated_at = std::cmp::max(now_ms(), current.updated_at + 1);
-        let mut transaction = self.pool.begin().await.map_err(db_error)?;
-        let updated = sqlx::query(
-            "UPDATE notes SET title=$2, content=$3, color=$4, pinned=$5, tags=$6, folder_id=$7, updated_at=$8, task_status=$9, task_priority=$10, task_due_date=$11 WHERE id=$1 AND deleted_at IS NULL AND ($12 IS NULL OR updated_at = $12)",
+        sqlx::query(
+            "UPDATE notes SET title=$2, content=$3, color=$4, pinned=$5, tags=$6, folder_id=$7, updated_at=$8, task_status=$9, task_priority=$10, task_due_date=$11, external_key=$12 WHERE id=$1",
         )
         .bind(&args.id)
         .bind(title)
@@ -195,17 +263,13 @@ impl DevdrivrMcpService {
         .bind(task_status)
         .bind(task_priority)
         .bind(task_due_date)
-        .bind(args.expected_updated_at)
+        .bind(&external_key)
         .execute(&mut *transaction)
         .await
-        .map_err(db_error)?;
-        if updated.rows_affected() == 0 {
-            return Err(self
-                .stale_write_failure(ResourceType::Notes, &args.id, args.expected_updated_at)
-                .await);
-        }
+        .map_err(|error| note_key_write_error(error, external_key.as_deref()))?;
         Self::replace_note_links(&mut transaction, &args.id, &content).await?;
         transaction.commit().await.map_err(db_error)?;
+        self.emit_note_folders_created(created_folders);
         self.emit_changed("notes", "update", Some(args.id.clone()));
         self.mutation_result(ResourceType::Notes, "update", &args.id)
             .await

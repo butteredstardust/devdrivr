@@ -8,7 +8,10 @@ use super::{parse_json, redacted_auth};
 pub(super) struct NoteRow {
     pub(super) id: String,
     pub(super) title: String,
+    pub(super) external_key: Option<String>,
     pub(super) content: String,
+    #[sqlx(default)]
+    pub(super) content_length: i64,
     pub(super) color: String,
     pub(super) pinned: i64,
     pub(super) popped_out: i64,
@@ -114,6 +117,7 @@ pub(super) fn note_to_json(row: NoteRow, folder_path: Vec<String>) -> Value {
     json!({
         "id": row.id,
         "title": row.title,
+        "externalKey": row.external_key,
         "content": row.content,
         "color": row.color,
         "pinned": row.pinned == 1,
@@ -224,6 +228,8 @@ mod tests {
         NoteRow {
             id: "note-task-1".to_string(),
             title: "Ship release".to_string(),
+            external_key: None,
+            content_length: 0,
             content: "Keep the full note body".to_string(),
             color: "yellow".to_string(),
             pinned: 0,

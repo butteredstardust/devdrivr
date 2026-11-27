@@ -62,30 +62,20 @@ impl DevdrivrMcpService {
         validate_default_language(kind, args.default_language.is_some())?;
         self.validate_folder_parent(kind, None, args.parent_id.as_deref())
             .await?;
-        // CAST keeps the result SQLITE_FLOAT. SQLite gives an expression no column affinity, so
-        // the literal 0 that COALESCE returns for an empty parent stays an INTEGER and sqlx
-        // refuses to decode it as f64. That is what blocks the first folder under a new parent.
-        let max_sort = sqlx::query_scalar::<_, f64>(
-            "SELECT CAST(COALESCE(MAX(sort_order), 0) AS REAL) FROM resource_folders WHERE kind = $1 AND deleted_at IS NULL AND ((parent_id IS NULL AND $2 IS NULL) OR parent_id = $2)",
+        let mut transaction = self
+            .pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(db_error)?;
+        let folder = Self::create_folder_in(
+            &mut transaction,
+            kind,
+            &name,
+            args.parent_id,
+            args.default_language,
         )
-        .bind(kind)
-        .bind(&args.parent_id)
-        .fetch_one(&self.pool)
-        .await
-        .map_err(db_error)?;
-        let now = now_ms();
-        let folder = ResourceFolderRow {
-            id: Uuid::new_v4().to_string(),
-            name: name.to_string(),
-            parent_id: args.parent_id,
-            kind: kind.to_string(),
-            sort_order: max_sort + FOLDER_SORT_STEP,
-            default_language: args.default_language,
-            created_at: now,
-            updated_at: now,
-            deleted_at: None,
-        };
-        self.save_folder(&folder).await?;
+        .await?;
+        transaction.commit().await.map_err(db_error)?;
         self.emit_changed("folders", "create", Some(folder.id.clone()));
         self.emit_changed(kind, "create", Some(folder.id.clone()));
         if kind == "apiRequests" {
