@@ -147,9 +147,10 @@ describe('DiffViewer', () => {
 
   it('holds back a diff too large to render until the user asks for it', async () => {
     renderTool(DiffViewer)
-    openOptions()
-    fireEvent.change(screen.getByLabelText('Layout'), { target: { value: 'inline' } })
-    fillLargePatch('added line')
+    // Exercise a mixed patch just over the render cap in the default side-by-side layout.
+    const left = Array.from({ length: 1001 }, (_, index) => `original line ${index}`).join('\n')
+    const right = Array.from({ length: 1001 }, (_, index) => `changed line ${index}`).join('\n')
+    fillBothSides(left, right)
     fireEvent.click(screen.getByRole('button', { name: /Compare/ }))
 
     await waitFor(() => expect(screen.getByText('Large diff')).toBeInTheDocument())

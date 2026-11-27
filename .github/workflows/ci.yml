@@ -81,7 +81,7 @@ jobs:
       contents: read
     runs-on: ubuntu-26.04
     env:
-      # Match the test profile's debug info level for the CI Clippy build.
+      # Keep source locations while reducing debug info in Clippy's dev-profile build.
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
     steps:
       - uses: actions/checkout@v7
