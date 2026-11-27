@@ -987,7 +987,7 @@ dependencies = [
 
 [[package]]
 name = "devdrivr"
-version = "0.1.121"
+version = "0.1.122"
 dependencies = [
  "axum",
  "base64 0.22.1",
