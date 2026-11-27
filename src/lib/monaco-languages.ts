@@ -4,6 +4,16 @@ const basicLanguages = import.meta.glob(
   '/node_modules/monaco-editor/esm/vs/basic-languages/*/*.contribution.js'
 )
 
+// A few contributions register IDs that differ from their directory name.
+const contributionDirectories = new Map([
+  ['aes', 'sophia'],
+  ['c', 'cpp'],
+  ['coffeescript', 'coffee'],
+  ['proto', 'protobuf'],
+  ['sol', 'solidity'],
+  ['verilog', 'systemverilog'],
+])
+
 const loadCss = () => import('monaco-editor/esm/vs/language/css/monaco.contribution.js')
 const loadHtml = () => import('monaco-editor/esm/vs/language/html/monaco.contribution.js')
 const loadTypeScript = () =>
@@ -25,8 +35,11 @@ const loaded = new Set<string>()
 const loading = new Map<string, Promise<void>>()
 
 function basicLoader(language: string) {
+  const directory = language.startsWith('freemarker2.')
+    ? 'freemarker2'
+    : (contributionDirectories.get(language) ?? language)
   return basicLanguages[
-    `/node_modules/monaco-editor/esm/vs/basic-languages/${language}/${language}.contribution.js`
+    `/node_modules/monaco-editor/esm/vs/basic-languages/${directory}/${directory}.contribution.js`
   ]
 }
 
